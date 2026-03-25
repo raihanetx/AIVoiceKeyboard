@@ -480,10 +480,11 @@ fun TranslatePanel(
         }
         
         // Show error if any
-        if (!translateError.isNullOrBlank()) {
+        val currentError = translateError
+        if (!currentError.isNullOrBlank()) {
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = translateError,
+                text = currentError,
                 color = PrimaryRed,
                 fontSize = 11.sp,
                 textAlign = TextAlign.Center,
