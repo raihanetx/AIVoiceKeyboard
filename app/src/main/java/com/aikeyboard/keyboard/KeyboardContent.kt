@@ -25,21 +25,26 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.app.ActivityCompat
+import com.aikeyboard.AiKeyboardApp
 import com.aikeyboard.translation.ZAiClient
-import com.aikeyboard.voice.GeminiVoiceClient
+import com.aikeyboard.voice.AndroidSpeechRecognizer
+import com.aikeyboard.voice.GroqWhisperClient
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.File
 
 private const val TAG = "KeyboardContent"
 
-// Colors - centralized for maintainability
+// Colors
 private val KeyboardBackground = Color(0xFF1A1A2E)
 private val KeyboardSurface = Color(0xFF16213E)
 private val PrimaryBlue = Color(0xFF4285F4)
 private val PrimaryRed = Color(0xFFEA4335)
+private val PrimaryGreen = Color(0xFF34A853)
 private val SuccessGreen = Color(0xFF1B5E20)
 private val KeyBackground = Color(0xFF2D2D2D)
-private val CardBackground = Color(0xFF37474F)
+private val WarningOrange = Color(0xFFFF9800)
 
 @Composable
 fun KeyboardContent(
@@ -48,40 +53,13 @@ fun KeyboardContent(
     onEnter: () -> Unit
 ) {
     var currentPanel by remember { mutableStateOf("keyboard") }
-    var currentLanguage by remember { mutableStateOf("en") }
-    var isRecording by remember { mutableStateOf(false) }
-    var recognizedText by remember { mutableStateOf("") }
-    var recordingError by remember { mutableStateOf<String?>(null) }
-    val context = LocalContext.current
-    val scope = rememberCoroutineScope()
-    
-    // Voice recording state - use remember with DisposableEffect for cleanup
-    var mediaRecorderState by remember { mutableStateOf<MediaRecorder?>(null) }
-    var audioFileState by remember { mutableStateOf<File?>(null) }
-    
-    // Cleanup on dispose
-    DisposableEffect(Unit) {
-        onDispose {
-            // Ensure recorder is released if composable is disposed while recording
-            mediaRecorderState?.let { recorder ->
-                try {
-                    recorder.stop()
-                } catch (e: Exception) {
-                    Log.e(TAG, "Error stopping recorder on dispose", e)
-                }
-                try {
-                    recorder.release()
-                } catch (e: Exception) {
-                    Log.e(TAG, "Error releasing recorder on dispose", e)
-                }
-            }
-        }
-    }
-    
+    var currentLanguage by remember { mutableStateOf(AiKeyboardApp.defaultLanguage) }
+    var sttEngine by remember { mutableStateOf(AiKeyboardApp.defaultSTTEngine) }
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .height(300.dp)
+            .height(320.dp)
             .background(KeyboardBackground)
     ) {
         // Top bar with panel buttons
@@ -97,9 +75,9 @@ fun KeyboardContent(
             PanelButton("🌐", currentPanel == "translate") { currentPanel = "translate" }
             PanelButton("😀", currentPanel == "emoji") { currentPanel = "emoji" }
         }
-        
+
         HorizontalDivider(color = Color(0xFF333333))
-        
+
         // Content
         Box(
             modifier = Modifier
@@ -128,64 +106,11 @@ fun KeyboardContent(
                 }
                 "voice" -> {
                     VoicePanel(
-                        isRecording = isRecording,
                         currentLanguage = currentLanguage,
-                        recognizedText = recognizedText,
-                        recordingError = recordingError,
+                        sttEngine = sttEngine,
                         onLanguageChange = { currentLanguage = it },
-                        onToggleRecording = {
-                            // Check permission first
-                            if (ActivityCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) 
-                                != PackageManager.PERMISSION_GRANTED) {
-                                recordingError = "Microphone permission required"
-                                return@VoicePanel
-                            }
-                            
-                            if (isRecording) {
-                                // Stop recording
-                                val recorder = mediaRecorderState
-                                val audioFile = audioFileState
-                                
-                                stopRecording(recorder, audioFile) { file ->
-                                    if (file != null && file.exists() && file.length() > 0) {
-                                        scope.launch {
-                                            val result = GeminiVoiceClient.instance.transcribeAudio(file, currentLanguage)
-                                            result.onSuccess { text ->
-                                                recognizedText = text
-                                                recordingError = null
-                                            }
-                                            result.onFailure { e ->
-                                                recordingError = "Error: ${e.message}"
-                                                Log.e(TAG, "Transcription failed", e)
-                                            }
-                                            // Clean up audio file
-                                            try { file.delete() } catch (e: Exception) { Log.e(TAG, "Failed to delete audio file", e) }
-                                        }
-                                    } else {
-                                        recordingError = "Recording failed - no audio captured"
-                                    }
-                                }
-                                mediaRecorderState = null
-                                audioFileState = null
-                            } else {
-                                // Start recording
-                                recordingError = null
-                                recognizedText = ""
-                                val (recorder, file) = startRecording(context)
-                                if (recorder != null && file != null) {
-                                    mediaRecorderState = recorder
-                                    audioFileState = file
-                                } else {
-                                    recordingError = "Failed to start recording"
-                                    return@VoicePanel
-                                }
-                            }
-                            isRecording = !isRecording
-                        },
-                        onInsertText = { text ->
-                            onTextCommit(text)
-                            recognizedText = ""
-                        }
+                        onEngineChange = { sttEngine = it },
+                        onTextCommit = onTextCommit
                     )
                 }
                 "translate" -> {
@@ -202,7 +127,7 @@ fun KeyboardContent(
                 }
             }
         }
-        
+
         // Language switch
         HorizontalDivider(color = Color(0xFF333333))
         Row(
@@ -304,84 +229,276 @@ fun RowScope.KeyButton(key: String, onClick: () -> Unit) {
     }
 }
 
+// ==================== VOICE PANEL ====================
+
 @Composable
 fun VoicePanel(
-    isRecording: Boolean,
     currentLanguage: String,
-    recognizedText: String,
-    recordingError: String?,
+    sttEngine: String,
     onLanguageChange: (String) -> Unit,
-    onToggleRecording: () -> Unit,
-    onInsertText: (String) -> Unit
+    onEngineChange: (String) -> Unit,
+    onTextCommit: (String) -> Unit
 ) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+
+    // State
+    var isListening by remember { mutableStateOf(false) }
+    var recognizedText by remember { mutableStateOf("") }
+    var partialText by remember { mutableStateOf("") }
+    var statusMessage by remember { mutableStateOf("") }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+
+    // MediaRecorder for Groq (file-based)
+    var mediaRecorderState by remember { mutableStateOf<MediaRecorder?>(null) }
+    var audioFileState by remember { mutableStateOf<File?>(null) }
+
+    // Android SpeechRecognizer
+    var androidRecognizer by remember { mutableStateOf<AndroidSpeechRecognizer?>(null) }
+
+    // Cleanup on dispose
+    DisposableEffect(Unit) {
+        onDispose {
+            mediaRecorderState?.let { recorder ->
+                try { recorder.stop() } catch (e: Exception) { Log.e(TAG, "Error stopping", e) }
+                try { recorder.release() } catch (e: Exception) { Log.e(TAG, "Error releasing", e) }
+            }
+            androidRecognizer?.destroy()
+        }
+    }
+
     Column(
-        modifier = Modifier.fillMaxSize(),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        // Engine Switcher
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.Center
+        ) {
+            FilterChip(
+                selected = sttEngine == "groq",
+                onClick = { onEngineChange("groq") },
+                label = { Text("Groq (Online)", fontSize = 11.sp) },
+                leadingIcon = {
+                    if (sttEngine == "groq") Icon(Icons.Default.Cloud, null, modifier = Modifier.size(14.dp))
+                }
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            FilterChip(
+                selected = sttEngine == "android",
+                onClick = { onEngineChange("android") },
+                label = { Text("Android (Offline)", fontSize = 11.sp) },
+                leadingIcon = {
+                    if (sttEngine == "android") Icon(Icons.Default.PhoneAndroid, null, modifier = Modifier.size(14.dp))
+                }
+            )
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // Language Selection
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.Center
+        ) {
             FilterChip(
                 selected = currentLanguage == "en",
                 onClick = { onLanguageChange("en") },
-                label = { Text("English", fontSize = 12.sp) }
+                label = { Text("English", fontSize = 11.sp) }
             )
+            Spacer(modifier = Modifier.width(8.dp))
             FilterChip(
                 selected = currentLanguage == "bn",
                 onClick = { onLanguageChange("bn") },
-                label = { Text("বাংলা", fontSize = 12.sp) }
+                label = { Text("বাংলা", fontSize = 11.sp) }
             )
         }
-        
-        Spacer(modifier = Modifier.height(16.dp))
-        
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // Mic Button
         FloatingActionButton(
-            onClick = onToggleRecording,
-            containerColor = if (isRecording) PrimaryRed else PrimaryBlue,
+            onClick = {
+                if (isListening) {
+                    // STOP LISTENING
+                    if (sttEngine == "android") {
+                        androidRecognizer?.stopListening()
+                        androidRecognizer = null
+                    } else {
+                        // Stop Groq recording
+                        val recorder = mediaRecorderState
+                        val audioFile = audioFileState
+                        stopRecording(recorder, audioFile) { file ->
+                            if (file != null && file.exists() && file.length() > 0) {
+                                scope.launch {
+                                    statusMessage = "Transcribing..."
+                                    val result = GroqWhisperClient.instance.transcribeAudio(file, currentLanguage)
+                                    result.onSuccess { text ->
+                                        recognizedText = text
+                                        errorMessage = null
+                                        statusMessage = ""
+                                    }
+                                    result.onFailure { e ->
+                                        errorMessage = e.message
+                                        statusMessage = ""
+                                        Log.e(TAG, "Groq error", e)
+                                    }
+                                    try { file.delete() } catch (e: Exception) { }
+                                }
+                            } else {
+                                errorMessage = "Recording failed"
+                                statusMessage = ""
+                            }
+                        }
+                        mediaRecorderState = null
+                        audioFileState = null
+                    }
+                    isListening = false
+                } else {
+                    // START LISTENING
+                    errorMessage = null
+                    recognizedText = ""
+                    partialText = ""
+
+                    // Check permission
+                    if (ActivityCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO)
+                        != PackageManager.PERMISSION_GRANTED) {
+                        errorMessage = "Microphone permission required"
+                        return@FloatingActionButton
+                    }
+
+                    if (sttEngine == "android") {
+                        // Android SpeechRecognizer
+                        if (!AndroidSpeechRecognizer.isAvailable(context)) {
+                            errorMessage = "Speech recognition not available"
+                            return@FloatingActionButton
+                        }
+
+                        val recognizer = AndroidSpeechRecognizer(context)
+                        androidRecognizer = recognizer
+                        isListening = true
+
+                        scope.launch {
+                            recognizer.startListening(currentLanguage).collect { state ->
+                                when (state) {
+                                    is AndroidSpeechRecognizer.RecognitionState.Ready -> {
+                                        statusMessage = state.message
+                                    }
+                                    is AndroidSpeechRecognizer.RecognitionState.PartialResult -> {
+                                        partialText = state.text
+                                    }
+                                    is AndroidSpeechRecognizer.RecognitionState.FinalResult -> {
+                                        recognizedText = state.text
+                                        partialText = ""
+                                        statusMessage = ""
+                                        isListening = false
+                                    }
+                                    is AndroidSpeechRecognizer.RecognitionState.Error -> {
+                                        errorMessage = state.message
+                                        statusMessage = ""
+                                        isListening = false
+                                    }
+                                    is AndroidSpeechRecognizer.RecognitionState.Silent -> {}
+                                }
+                            }
+                        }
+                    } else {
+                        // Groq Whisper - record to file
+                        if (AiKeyboardApp.GROQ_API_KEY.isBlank()) {
+                            errorMessage = "Groq API key not set. Get free key from console.groq.com"
+                            return@FloatingActionButton
+                        }
+
+                        val (recorder, file) = startRecording(context)
+                        if (recorder != null && file != null) {
+                            mediaRecorderState = recorder
+                            audioFileState = file
+                            isListening = true
+                            statusMessage = "Recording... Tap to stop"
+                        } else {
+                            errorMessage = "Failed to start recording"
+                        }
+                    }
+                }
+            },
+            containerColor = when {
+                isListening -> PrimaryRed
+                sttEngine == "groq" -> PrimaryBlue
+                else -> PrimaryGreen
+            },
             modifier = Modifier.size(56.dp)
         ) {
             Icon(
-                if (isRecording) Icons.Default.MicOff else Icons.Default.Mic,
+                if (isListening) Icons.Default.MicOff else Icons.Default.Mic,
                 contentDescription = null,
                 tint = Color.White
             )
         }
-        
-        Spacer(modifier = Modifier.height(8.dp))
-        
+
+        Spacer(modifier = Modifier.height(6.dp))
+
+        // Status
         Text(
-            text = if (isRecording) "Listening..." else "Tap to speak",
+            text = statusMessage.ifEmpty { if (isListening) "Listening..." else "Tap to speak" },
             color = Color.Gray,
-            fontSize = 12.sp
+            fontSize = 11.sp
         )
-        
-        // Show error if any
-        if (!recordingError.isNullOrBlank()) {
-            Spacer(modifier = Modifier.height(8.dp))
+
+        // Error message
+        if (!errorMessage.isNullOrBlank()) {
+            Spacer(modifier = Modifier.height(4.dp))
             Text(
-                text = recordingError,
+                text = errorMessage!!,
                 color = PrimaryRed,
-                fontSize = 11.sp,
+                fontSize = 10.sp,
                 textAlign = TextAlign.Center
             )
         }
-        
-        if (recognizedText.isNotBlank()) {
-            Spacer(modifier = Modifier.height(8.dp))
+
+        // Partial result (Android only)
+        if (partialText.isNotBlank()) {
+            Spacer(modifier = Modifier.height(6.dp))
             Card(
                 colors = CardDefaults.cardColors(containerColor = KeyBackground),
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp)
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(8.dp)) {
+                    Text("Listening...", color = Color.Gray, fontSize = 10.sp)
+                    Text(partialText, color = Color.White, fontSize = 12.sp)
+                }
+            }
+        }
+
+        // Final result
+        if (recognizedText.isNotBlank()) {
+            Spacer(modifier = Modifier.height(6.dp))
+            Card(
+                colors = CardDefaults.cardColors(containerColor = SuccessGreen),
+                modifier = Modifier.fillMaxWidth()
             ) {
                 Column(modifier = Modifier.padding(8.dp)) {
                     Text(recognizedText, color = Color.White, fontSize = 12.sp)
                     Spacer(modifier = Modifier.height(4.dp))
-                    TextButton(onClick = { onInsertText(recognizedText) }) {
-                        Text("Insert Text", color = PrimaryBlue, fontSize = 12.sp)
+                    Button(
+                        onClick = {
+                            onTextCommit(recognizedText)
+                            recognizedText = ""
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color.White),
+                        modifier = Modifier.fillMaxWidth().height(32.dp)
+                    ) {
+                        Text("Insert Text", color = SuccessGreen, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     }
                 }
             }
         }
     }
 }
+
+// ==================== TRANSLATE PANEL ====================
 
 @Composable
 fun TranslatePanel(
@@ -394,16 +511,15 @@ fun TranslatePanel(
     var translateError by remember { mutableStateOf<String?>(null) }
     var isTranslating by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
-    
-    // Target language is opposite of current
+
     val targetLang = if (currentLanguage == "en") "bn" else "en"
-    
+
     Column(
         modifier = Modifier
             .fillMaxSize()
             .padding(8.dp)
     ) {
-        // Language direction indicator
+        // Language direction
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.Center,
@@ -414,19 +530,19 @@ fun TranslatePanel(
                 onClick = { onLanguageChange("en") },
                 label = { Text("EN", fontSize = 10.sp) }
             )
-            Icon(Icons.Default.ArrowForward, contentDescription = null, tint = Color.Gray, modifier = Modifier.size(20.dp))
+            Icon(Icons.Default.ArrowForward, null, tint = Color.Gray, modifier = Modifier.size(20.dp))
             FilterChip(
                 selected = currentLanguage == "bn",
                 onClick = { onLanguageChange("bn") },
                 label = { Text("বাং", fontSize = 10.sp) }
             )
         }
-        
+
         Spacer(modifier = Modifier.height(8.dp))
-        
+
         OutlinedTextField(
             value = inputText,
-            onValueChange = { 
+            onValueChange = {
                 inputText = it
                 translateError = null
             },
@@ -441,12 +557,12 @@ fun TranslatePanel(
             singleLine = true,
             textStyle = LocalTextStyle.current.copy(fontSize = 14.sp)
         )
-        
+
         Spacer(modifier = Modifier.height(8.dp))
-        
+
         Button(
             onClick = {
-                if (inputText.isNotBlank() && inputText.length <= 5000) {
+                if (inputText.isNotBlank()) {
                     isTranslating = true
                     translateError = null
                     scope.launch {
@@ -460,8 +576,6 @@ fun TranslatePanel(
                         }
                         isTranslating = false
                     }
-                } else if (inputText.length > 5000) {
-                    translateError = "Text too long (max 5000 chars)"
                 }
             },
             colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue),
@@ -478,20 +592,18 @@ fun TranslatePanel(
                 Text("Translate", fontSize = 12.sp)
             }
         }
-        
-        // Show error if any
-        val currentError = translateError
-        if (!currentError.isNullOrBlank()) {
+
+        if (!translateError.isNullOrBlank()) {
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = currentError,
+                text = translateError!!,
                 color = PrimaryRed,
                 fontSize = 11.sp,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.fillMaxWidth()
             )
         }
-        
+
         if (translatedText.isNotBlank()) {
             Spacer(modifier = Modifier.height(8.dp))
             Card(
@@ -500,8 +612,8 @@ fun TranslatePanel(
             ) {
                 Column(modifier = Modifier.padding(8.dp)) {
                     Text(
-                        translatedText, 
-                        color = Color.White, 
+                        translatedText,
+                        color = Color.White,
                         fontSize = 12.sp,
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -518,6 +630,8 @@ fun TranslatePanel(
     }
 }
 
+// ==================== EMOJI PANEL ====================
+
 @Composable
 fun EmojiPanel(onEmojiClick: (String) -> Unit) {
     val emojis = listOf(
@@ -526,7 +640,7 @@ fun EmojiPanel(onEmojiClick: (String) -> Unit) {
         listOf("🥰", "😍", "🤩", "😘", "😎", "🤔", "😢", "😭", "😤", "🤗"),
         listOf("🙏", "👋", "🤝", "✌️", "🤞", "👌", "✋", "👏", "🤲", "👐")
     )
-    
+
     Column(
         modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -551,35 +665,30 @@ fun EmojiPanel(onEmojiClick: (String) -> Unit) {
     }
 }
 
-// ==================== Voice Recording Helper Functions ====================
+// ==================== RECORDING HELPERS ====================
 
-/**
- * Start recording audio. Returns (MediaRecorder, File) or (null, null) on failure.
- */
 fun startRecording(context: Context): Pair<MediaRecorder?, File?> {
     return try {
         val cacheDir = context.cacheDir
-        if (!cacheDir.exists()) {
-            cacheDir.mkdirs()
-        }
-        
+        if (!cacheDir.exists()) cacheDir.mkdirs()
+
         val fileName = "${cacheDir.absolutePath}/voice_${System.currentTimeMillis()}.3gp"
         val file = File(fileName)
-        
+
         val recorder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             MediaRecorder(context)
         } else {
             @Suppress("DEPRECATION")
             MediaRecorder()
         }
-        
+
         recorder.setAudioSource(MediaRecorder.AudioSource.MIC)
         recorder.setOutputFormat(MediaRecorder.OutputFormat.THREE_GPP)
         recorder.setAudioEncoder(MediaRecorder.AudioEncoder.AMR_NB)
         recorder.setOutputFile(fileName)
         recorder.prepare()
         recorder.start()
-        
+
         Log.d(TAG, "Recording started: $fileName")
         Pair(recorder, file)
     } catch (e: Exception) {
@@ -588,32 +697,25 @@ fun startRecording(context: Context): Pair<MediaRecorder?, File?> {
     }
 }
 
-/**
- * Stop recording and release resources properly.
- * Always releases the MediaRecorder, even if stop() fails.
- */
 fun stopRecording(
     recorder: MediaRecorder?,
     audioFile: File?,
     onComplete: (File?) -> Unit
 ) {
     Log.d(TAG, "Stopping recording")
-    
-    // Always try to release the recorder
+
     try {
         recorder?.stop()
-        Log.d(TAG, "Recording stopped successfully")
+        Log.d(TAG, "Recording stopped")
     } catch (e: Exception) {
         Log.e(TAG, "Error stopping recorder", e)
     } finally {
         try {
             recorder?.release()
-            Log.d(TAG, "Recorder released")
         } catch (e: Exception) {
             Log.e(TAG, "Error releasing recorder", e)
         }
     }
-    
-    // Return the audio file (or null if there was an error)
+
     onComplete(audioFile)
 }
