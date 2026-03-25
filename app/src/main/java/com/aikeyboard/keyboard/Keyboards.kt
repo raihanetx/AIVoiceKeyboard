@@ -1,6 +1,5 @@
 package com.aikeyboard.keyboard
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
@@ -48,9 +47,12 @@ fun BanglaKeyboard() {
 }
 
 @Composable
-fun Key(key: String, wide: Boolean) {
+fun RowScope.Key(key: String, wide: Boolean) {
     Surface(
-        modifier = Modifier.padding(2.dp).height(40.dp).then(if (wide) Modifier.weight(3f) else Modifier.weight(1f)),
+        modifier = Modifier
+            .padding(2.dp)
+            .height(40.dp)
+            .weight(if (wide) 3f else 1f),
         shape = RoundedCornerShape(4.dp),
         color = Color(0xFF2D2D2D)
     ) {
