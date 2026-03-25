@@ -1,8 +1,8 @@
 package com.aikeyboard.voice
 
-import android.util.Base64
 import android.util.Log
 import com.aikeyboard.AiKeyboardApp
+import com.aikeyboard.Secrets
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.*
@@ -40,7 +40,6 @@ class GroqWhisperClient {
             }
 
             val audioBytes = audioFile.readBytes()
-            val audioBase64 = Base64.encodeToString(audioBytes, Base64.NO_WRAP)
 
             // Determine mime type based on file extension
             val mimeType = when (audioFile.extension.lowercase()) {
@@ -49,20 +48,23 @@ class GroqWhisperClient {
                 "webm" -> "audio/webm"
                 "wav" -> "audio/wav"
                 "mp3" -> "audio/mpeg"
-                "aac" -> "audio/aac"
-                "ogg" -> "audio/ogg"
-                "flac" -> "audio/flac"
                 else -> "audio/3gpp"
+            }
+
+            val apiKey = Secrets.GROQ_API_KEY
+            if (apiKey.isBlank()) {
+                return@withContext Result.failure(Exception("Groq API key not configured"))
             }
 
             Log.d(TAG, "Transcribing with Groq Whisper: ${audioFile.name}, mimeType: $mimeType, size: ${audioFile.length()}")
 
-            // Build multipart form request
+            // Build multipart form request (matching official Groq docs)
             val requestBody = MultipartBody.Builder()
                 .setType(MultipartBody.FORM)
                 .addFormDataPart("model", "whisper-large-v3")
                 .addFormDataPart("language", if (language == "bn") "bn" else "en")
                 .addFormDataPart("response_format", "json")
+                .addFormDataPart("temperature", "0")
                 .addFormDataPart(
                     "file",
                     audioFile.name,
@@ -72,7 +74,7 @@ class GroqWhisperClient {
 
             val request = Request.Builder()
                 .url("${AiKeyboardApp.GROQ_ENDPOINT}/audio/transcriptions")
-                .addHeader("Authorization", "Bearer ${AiKeyboardApp.GROQ_API_KEY}")
+                .addHeader("Authorization", "Bearer $apiKey")
                 .post(requestBody)
                 .build()
 
@@ -101,9 +103,9 @@ class GroqWhisperClient {
                     val errorBody = response.body?.string() ?: "Unknown error"
                     Log.e(TAG, "API Error: ${response.code} - $errorBody")
 
-                    // Parse error message
                     val errorMessage = try {
-                        JSONObject(errorBody).optJSONObject("error")?.optString("message") ?: "API Error: ${response.code}"
+                        JSONObject(errorBody).optJSONObject("error")?.optString("message") 
+                            ?: "API Error: ${response.code}"
                     } catch (e: Exception) {
                         "API Error: ${response.code}"
                     }
