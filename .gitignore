@@ -13,3 +13,6 @@ Thumbs.db
 # Local
 local.properties
 *.apk
+
+# Secrets - DO NOT COMMIT
+app/src/main/java/com/aikeyboard/Secrets.kt

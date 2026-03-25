@@ -9,10 +9,10 @@ class AiKeyboardApp : Application() {
             private set
 
         // ==================== API KEYS ====================
-        // Get your Groq API key from: https://console.groq.com (FREE, ~10,000 requests/day)
-        const val GROQ_API_KEY = ""  // <-- ADD YOUR GROQ API KEY HERE
+        // Groq API key loaded from Secrets.kt (not committed to GitHub)
+        val GROQ_API_KEY: String = Secrets.GROQ_API_KEY
 
-        // z-ai API key for translation (already provided)
+        // z-ai API key for translation
         const val ZAI_API_KEY = "bc4af852307844eda61a4806a37521b0.ODmxaQPLG93RxmI6"
 
         // ==================== ENDPOINTS ====================
@@ -20,10 +20,7 @@ class AiKeyboardApp : Application() {
         const val ZAI_ENDPOINT = "https://api.z.ai/api/paas/v4"
 
         // ==================== SETTINGS ====================
-        // Default STT engine: "groq" or "android"
         var defaultSTTEngine = "groq"
-
-        // Default language: "en" or "bn"
         var defaultLanguage = "en"
     }
 
