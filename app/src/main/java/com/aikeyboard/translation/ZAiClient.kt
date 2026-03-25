@@ -79,10 +79,16 @@ object ZAiClient {
                             return@withContext Result.failure(Exception("No translation returned"))
                         }
                         
-                        val content = choices.getJSONObject(0)
-                            .optJSONObject("message")
-                            ?.optString("content", "")
-                            ?: ""
+                        // Try to get content from message
+                        val messageObj = choices.getJSONObject(0).optJSONObject("message")
+                        
+                        // GLM-4.7-flash may return content in "content" or "reasoning_content"
+                        var content = messageObj?.optString("content", "") ?: ""
+                        
+                        // If content is empty, try reasoning_content
+                        if (content.isBlank()) {
+                            content = messageObj?.optString("reasoning_content", "") ?: ""
+                        }
                             
                         if (content.isBlank()) {
                             return@withContext Result.failure(Exception("Empty translation"))

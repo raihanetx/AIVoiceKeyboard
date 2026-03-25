@@ -8,8 +8,9 @@ class AiKeyboardApp : Application() {
         lateinit var instance: AiKeyboardApp
             private set
         
-        // API Keys
-        const val GEMINI_API_KEY = "AIzaSyDGLu8GoxbJJi8CCRcj41EkTmYMODo-rrc"
+        // API Keys - UPDATE GEMINI_KEY with your new key from https://aistudio.google.com/app/apikey
+        // The previous key was blocked due to being leaked
+        const val GEMINI_API_KEY = "YOUR_NEW_GEMINI_API_KEY_HERE"
         const val ZAI_API_KEY = "bc4af852307844eda61a4806a37521b0.ODmxaQPLG93RxmI6"
         
         // Endpoints
@@ -17,7 +18,9 @@ class AiKeyboardApp : Application() {
         const val ZAI_ENDPOINT = "https://api.z.ai/api/paas/v4"
         
         // Models
-        const val GEMINI_AUDIO_MODEL = "gemini-2.5-flash-native-audio-preview-12-2025"
+        // For audio transcription, use gemini-1.5-flash or gemini-2.0-flash-exp
+        // Both support audio input via generateContent API
+        const val GEMINI_AUDIO_MODEL = "gemini-1.5-flash-latest"
     }
     
     override fun onCreate() {

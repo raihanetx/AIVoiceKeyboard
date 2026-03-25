@@ -37,12 +37,27 @@ class GeminiVoiceClient {
             val audioBytes = audioFile.readBytes()
             val audioBase64 = Base64.encodeToString(audioBytes, Base64.NO_WRAP)
             
+            // Determine mime type based on file extension
+            val mimeType = when (audioFile.extension.lowercase()) {
+                "3gp" -> "audio/3gpp"
+                "mp4", "m4a" -> "audio/mp4"
+                "webm" -> "audio/webm"
+                "wav" -> "audio/wav"
+                "mp3" -> "audio/mpeg"
+                "aac" -> "audio/aac"
+                "ogg" -> "audio/ogg"
+                "flac" -> "audio/flac"
+                else -> "audio/3gpp" // Default to 3gpp for 3GP files
+            }
+            
+            Log.d(TAG, "Transcribing audio: ${audioFile.name}, mimeType: $mimeType, size: ${audioFile.length()}")
+            
             val jsonBody = JSONObject().apply {
                 put("contents", JSONArray().apply {
                     put(JSONObject().apply {
                         put("parts", JSONArray().apply {
                             put(JSONObject().put("text", "Transcribe this audio to ${if(language=="bn") "Bengali" else "English"}. Only output the transcribed text, nothing else."))
-                            put(JSONObject().put("inline_data", JSONObject().put("mime_type", "audio/3gp").put("data", audioBase64)))
+                            put(JSONObject().put("inline_data", JSONObject().put("mime_type", mimeType).put("data", audioBase64)))
                         })
                     })
                 })
