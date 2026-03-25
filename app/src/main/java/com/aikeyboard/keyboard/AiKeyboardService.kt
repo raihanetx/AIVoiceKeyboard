@@ -4,6 +4,13 @@ import android.inputmethodservice.InputMethodService
 import android.util.Log
 import android.view.View
 import android.view.inputmethod.EditorInfo
+import android.widget.LinearLayout
+import android.widget.TextView
+import android.widget.Button
+import android.widget.EditText
+import android.view.Gravity
+import android.graphics.Color
+import android.view.ViewGroup
 import androidx.compose.ui.platform.ComposeView
 import com.aikeyboard.ui.theme.KeyboardTheme
 
@@ -11,65 +18,81 @@ class AiKeyboardService : InputMethodService() {
     
     companion object {
         private const val TAG = "AiKeyboardService"
+        var isServiceRunning = false
+            private set
     }
-    
-    private var composeView: ComposeView? = null
     
     override fun onCreate() {
         super.onCreate()
-        Log.d(TAG, "=== Keyboard service created ===")
+        isServiceRunning = true
+        Log.d(TAG, "=== SERVICE CREATED ===")
     }
     
     override fun onCreateInputView(): View {
-        Log.d(TAG, "=== Creating input view ===")
+        Log.d(TAG, "=== onCreateInputView called ===")
         
         return try {
-            composeView = ComposeView(this).apply {
+            val view = ComposeView(this).apply {
                 setContent {
                     KeyboardTheme {
                         KeyboardContent(
                             onTextCommit = { text ->
-                                try {
-                                    currentInputConnection?.commitText(text, 1)
-                                } catch (e: Exception) {
-                                    Log.e(TAG, "commitText error: ${e.message}")
-                                }
+                                currentInputConnection?.commitText(text, 1)
                             },
                             onDelete = {
-                                try {
-                                    currentInputConnection?.deleteSurroundingText(1, 0)
-                                } catch (e: Exception) {
-                                    Log.e(TAG, "deleteSurroundingText error: ${e.message}")
-                                }
+                                currentInputConnection?.deleteSurroundingText(1, 0)
                             },
                             onEnter = {
-                                try {
-                                    currentInputConnection?.performEditorAction(EditorInfo.IME_ACTION_DONE)
-                                } catch (e: Exception) {
-                                    Log.e(TAG, "performEditorAction error: ${e.message}")
-                                }
+                                currentInputConnection?.performEditorAction(EditorInfo.IME_ACTION_DONE)
                             }
                         )
                     }
                 }
             }
-            Log.d(TAG, "=== ComposeView created successfully ===")
-            composeView!!
+            Log.d(TAG, "=== ComposeView SUCCESS ===")
+            view
         } catch (e: Exception) {
-            Log.e(TAG, "=== ERROR creating ComposeView: ${e.message}", e)
-            // Return an empty view as fallback
-            View(this)
+            Log.e(TAG, "=== ComposeView FAILED: ${e.message}", e)
+            createFallbackView()
+        }
+    }
+    
+    private fun createFallbackView(): View {
+        Log.d(TAG, "=== Creating FALLBACK view ===")
+        return LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setBackgroundColor(Color.parseColor("#1A1A2E"))
+            layoutParams = ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                400
+            )
+            gravity = Gravity.CENTER
+            
+            addView(TextView(context).apply {
+                text = "AI Voice Keyboard"
+                textSize = 24f
+                setTextColor(Color.WHITE)
+                gravity = Gravity.CENTER
+            })
+            
+            addView(TextView(context).apply {
+                text = "Type in any text field"
+                textSize = 14f
+                setTextColor(Color.GRAY)
+                gravity = Gravity.CENTER
+                setPadding(0, 20, 0, 0)
+            })
         }
     }
     
     override fun onStartInput(attribute: EditorInfo?, restarting: Boolean) {
         super.onStartInput(attribute, restarting)
-        Log.d(TAG, "onStartInput: restarting=$restarting")
+        Log.d(TAG, "onStartInput")
     }
     
     override fun onStartInputView(editorInfo: EditorInfo?, restarting: Boolean) {
         super.onStartInputView(editorInfo, restarting)
-        Log.d(TAG, "onStartInputView: restarting=$restarting")
+        Log.d(TAG, "=== KEYBOARD VISIBLE ===")
     }
     
     override fun onFinishInput() {
@@ -77,19 +100,9 @@ class AiKeyboardService : InputMethodService() {
         Log.d(TAG, "onFinishInput")
     }
     
-    override fun onFinishInputView(finishingInput: Boolean) {
-        super.onFinishInputView(finishingInput)
-        Log.d(TAG, "onFinishInputView: finishing=$finishingInput")
-    }
-    
     override fun onDestroy() {
-        Log.d(TAG, "=== onDestroy ===")
-        try {
-            composeView?.disposeComposition()
-        } catch (e: Exception) {
-            Log.e(TAG, "disposeComposition error: ${e.message}")
-        }
-        composeView = null
+        Log.d(TAG, "=== SERVICE DESTROYED ===")
+        isServiceRunning = false
         super.onDestroy()
     }
 }
