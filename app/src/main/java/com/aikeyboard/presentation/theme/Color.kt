@@ -21,7 +21,8 @@ object Color {
     val OnPrimary = Color.White
     val OnBackground = Color.White
     val OnSurface = Color.White
-    val TextSecondary = Color.Gray
+    val TextPrimary = Color.White
+    val TextSecondary = Color(0xFFB0B0B0)
     val TextHint = Color(0xFF757575)
     
     // Status colors
