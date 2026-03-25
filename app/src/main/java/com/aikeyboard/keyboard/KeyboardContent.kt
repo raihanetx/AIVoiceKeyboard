@@ -1,9 +1,6 @@
 package com.aikeyboard.keyboard
 
 import android.content.pm.PackageManager
-import android.speech.RecognitionListener
-import android.speech.RecognizerIntent
-import android.speech.SpeechRecognizer
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -66,7 +63,7 @@ fun KeyboardContent(
             when (currentPanel) {
                 "keyboard" -> {
                     if (currentLanguage == "en") {
-                        EnglishKeyboard(
+                        EnglishKeyboardContent(
                             onKeyClick = { key ->
                                 when (key) {
                                     "⌫" -> onDelete()
@@ -77,7 +74,7 @@ fun KeyboardContent(
                             }
                         )
                     } else {
-                        BanglaKeyboard(
+                        BanglaKeyboardContent(
                             onKeyClick = { key -> onTextCommit(key) }
                         )
                     }
@@ -89,10 +86,7 @@ fun KeyboardContent(
                         recognizedText = recognizedText,
                         onLanguageChange = { currentLanguage = it },
                         onToggleRecording = {
-                            if (ActivityCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
-                                isRecording = !isRecording
-                                // Voice recognition logic here
-                            }
+                            isRecording = !isRecording
                         },
                         onInsertText = { text ->
                             onTextCommit(text)
@@ -156,6 +150,59 @@ fun PanelButton(text: String, selected: Boolean, onClick: () -> Unit) {
 }
 
 @Composable
+fun EnglishKeyboardContent(onKeyClick: (String) -> Unit) {
+    val rows = listOf(
+        listOf("q","w","e","r","t","y","u","i","o","p"),
+        listOf("a","s","d","f","g","h","j","k","l"),
+        listOf("⇧","z","x","c","v","b","n","m","⌫"),
+        listOf("?123","😊","Space",".","↵")
+    )
+    Column(modifier = Modifier.fillMaxWidth()) {
+        rows.forEach { row ->
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                row.forEach { key ->
+                    KeyButton(key = key, onClick = { onKeyClick(key) })
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun BanglaKeyboardContent(onKeyClick: (String) -> Unit) {
+    val rows = listOf(
+        listOf("১","২","৩","৪","৫","৬","৭","৮","৯","০"),
+        listOf("ৌ","ৈ","া","ী","ূ","ব","হ","গ","দ","জ"),
+        listOf("ো","ে","্","ি","ু","প","র","ক","ত","চ"),
+        listOf("ং","ম","ন","ণ","স","ও","য","শ","খ","ঃ")
+    )
+    Column(modifier = Modifier.fillMaxWidth()) {
+        rows.forEach { row ->
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                row.forEach { key -> KeyButton(key = key, onClick = { onKeyClick(key) }) }
+            }
+        }
+    }
+}
+
+@Composable
+fun RowScope.KeyButton(key: String, onClick: () -> Unit) {
+    Surface(
+        onClick = onClick,
+        modifier = Modifier
+            .padding(2.dp)
+            .height(36.dp)
+            .weight(1f),
+        shape = RoundedCornerShape(4.dp),
+        color = Color(0xFF2D2D2D)
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Text(key, color = Color.White, fontSize = 14.sp)
+        }
+    }
+}
+
+@Composable
 fun VoicePanel(
     isRecording: Boolean,
     currentLanguage: String,
@@ -213,9 +260,7 @@ fun VoicePanel(
 }
 
 @Composable
-fun TranslatePanel(
-    onInsertText: (String) -> Unit
-) {
+fun TranslatePanel(onInsertText: (String) -> Unit) {
     var inputText by remember { mutableStateOf("") }
     var translatedText by remember { mutableStateOf("") }
     
@@ -239,10 +284,7 @@ fun TranslatePanel(
         Spacer(modifier = Modifier.height(8.dp))
         
         Button(
-            onClick = {
-                // Placeholder for translation
-                translatedText = "[Translation: $inputText]"
-            },
+            onClick = { translatedText = "[Translated: $inputText]" },
             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4285F4)),
             modifier = Modifier.fillMaxWidth()
         ) {
@@ -251,9 +293,7 @@ fun TranslatePanel(
         
         if (translatedText.isNotBlank()) {
             Spacer(modifier = Modifier.height(8.dp))
-            Card(
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF2D2D2D))
-            ) {
+            Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF2D2D2D))) {
                 Column(modifier = Modifier.padding(8.dp)) {
                     Text(translatedText, color = Color.White, fontSize = 12.sp)
                     Spacer(modifier = Modifier.height(4.dp))

@@ -3,12 +3,13 @@ package com.aikeyboard.settings
 import android.app.Activity
 import android.content.Context
 import android.content.Intent
-import android.net.Uri
+import android.content.pm.PackageManager
 import android.os.Build
 import android.provider.Settings
 import android.view.inputmethod.InputMethodManager
 import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts
+import android.os.Bundle
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -25,7 +26,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.app.ActivityCompat
-import com.aikeyboard.AiKeyboardApp
+import androidx.core.content.ContextCompat
 import com.aikeyboard.ui.theme.AIVoiceKeyboardTheme
 import kotlinx.coroutines.delay
 
@@ -33,22 +34,10 @@ class MainActivity : ComponentActivity() {
     
     private val requestPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
-    ) { isGranted ->
-        // Permission result handled in UI
-    }
+    ) { _ -> }
     
-    override fun onResume() {
-        super.onResume()
-        // Refresh UI when returning from settings
-    }
-    
-    override fun onCreate(savedInstanceState: android.os.Bundle?) {
+    override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        
-        // Request audio permission on start
-        if (ActivityCompat.shouldShowRequestPermissionRationale(this, android.Manifest.permission.RECORD_AUDIO)) {
-            requestPermissionLauncher.launch(android.Manifest.permission.RECORD_AUDIO)
-        }
         
         setContent {
             AIVoiceKeyboardTheme {
@@ -65,7 +54,6 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun SetupScreen(requestAudioPermission: () -> Unit) {
     val context = LocalContext.current
-    val activity = context as? Activity
     
     var keyboardEnabled by remember { mutableStateOf(false) }
     var keyboardDefault by remember { mutableStateOf(false) }
@@ -88,7 +76,6 @@ fun SetupScreen(requestAudioPermission: () -> Unit) {
             .padding(20.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        // Header
         Spacer(modifier = Modifier.height(40.dp))
         
         Text(
@@ -108,48 +95,42 @@ fun SetupScreen(requestAudioPermission: () -> Unit) {
         
         Spacer(modifier = Modifier.height(40.dp))
         
-        // Setup Steps
+        // Step 1: Enable Keyboard
         SetupStep(
             number = 1,
             title = "Enable Keyboard",
             description = if (keyboardEnabled) "Keyboard is enabled ✓" else "Allow AI Voice Keyboard in settings",
             isComplete = keyboardEnabled,
-            onClick = {
-                openInputMethodSettings(context)
-            }
+            onClick = { openInputMethodSettings(context) }
         )
         
         Spacer(modifier = Modifier.height(16.dp))
         
+        // Step 2: Set as Default
         SetupStep(
             number = 2,
             title = "Set as Default",
             description = if (keyboardDefault) "Keyboard is default ✓" else "Select as your default keyboard",
             isComplete = keyboardDefault,
             enabled = keyboardEnabled,
-            onClick = {
-                openDefaultKeyboardSettings(context)
-            }
+            onClick = { openDefaultKeyboardSettings(context) }
         )
         
         Spacer(modifier = Modifier.height(16.dp))
         
+        // Step 3: Microphone Permission
         SetupStep(
             number = 3,
             title = "Microphone Permission",
             description = if (audioPermissionGranted) "Microphone access granted ✓" else "Required for voice typing",
             isComplete = audioPermissionGranted,
             enabled = keyboardEnabled,
-            onClick = {
-                if (!audioPermissionGranted) {
-                    requestAudioPermission()
-                }
-            }
+            onClick = { if (!audioPermissionGranted) requestAudioPermission() }
         )
         
         Spacer(modifier = Modifier.height(40.dp))
         
-        // Overall Status
+        // Status Card
         if (keyboardEnabled && keyboardDefault && audioPermissionGranted) {
             Card(
                 colors = CardDefaults.cardColors(containerColor = Color(0xFF1B5E20)),
@@ -159,25 +140,11 @@ fun SetupScreen(requestAudioPermission: () -> Unit) {
                     modifier = Modifier.padding(16.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(
-                        Icons.Default.CheckCircle,
-                        contentDescription = null,
-                        tint = Color.White,
-                        modifier = Modifier.size(32.dp)
-                    )
+                    Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color.White, modifier = Modifier.size(32.dp))
                     Spacer(modifier = Modifier.width(12.dp))
                     Column {
-                        Text(
-                            text = "All Set!",
-                            color = Color.White,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 18.sp
-                        )
-                        Text(
-                            text = "Open any app and start typing",
-                            color = Color.White.copy(alpha = 0.8f),
-                            fontSize = 14.sp
-                        )
+                        Text(text = "All Set!", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                        Text(text = "Open any app and start typing", color = Color.White.copy(alpha = 0.8f), fontSize = 14.sp)
                     }
                 }
             }
@@ -197,7 +164,7 @@ fun SetupScreen(requestAudioPermission: () -> Unit) {
         
         Spacer(modifier = Modifier.weight(1f))
         
-        // Quick Open Settings Button
+        // Quick Settings Button
         OutlinedButton(
             onClick = { openInputMethodSettings(context) },
             colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
@@ -234,12 +201,9 @@ fun SetupStep(
         modifier = Modifier.fillMaxWidth()
     ) {
         Row(
-            modifier = Modifier
-                .padding(16.dp)
-                .fillMaxWidth(),
+            modifier = Modifier.padding(16.dp).fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Step number or check
             Box(
                 modifier = Modifier
                     .size(40.dp)
@@ -250,19 +214,9 @@ fun SetupStep(
                 contentAlignment = Alignment.Center
             ) {
                 if (isComplete) {
-                    Icon(
-                        Icons.Default.Check,
-                        contentDescription = null,
-                        tint = Color.White,
-                        modifier = Modifier.size(28.dp)
-                    )
+                    Icon(Icons.Default.Check, contentDescription = null, tint = Color.White, modifier = Modifier.size(28.dp))
                 } else {
-                    Text(
-                        text = number.toString(),
-                        color = Color.White,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 18.sp
-                    )
+                    Text(text = number.toString(), color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp)
                 }
             }
             
@@ -284,11 +238,7 @@ fun SetupStep(
             }
             
             if (!isComplete && enabled) {
-                Icon(
-                    Icons.Default.ArrowForward,
-                    contentDescription = null,
-                    tint = Color.White.copy(alpha = 0.6f)
-                )
+                Icon(Icons.Default.ArrowForward, contentDescription = null, tint = Color.White.copy(alpha = 0.6f))
             }
         }
     }
@@ -302,18 +252,12 @@ fun isKeyboardEnabled(context: Context): Boolean {
 }
 
 fun isKeyboardDefault(context: Context): Boolean {
-    val defaultIme = Settings.Secure.getString(
-        context.contentResolver,
-        Settings.Secure.DEFAULT_INPUT_METHOD
-    )
+    val defaultIme = Settings.Secure.getString(context.contentResolver, Settings.Secure.DEFAULT_INPUT_METHOD)
     return defaultIme.contains(context.packageName)
 }
 
 fun checkAudioPermission(context: Context): Boolean {
-    return ActivityCompat.checkSelfPermission(
-        context,
-        android.Manifest.permission.RECORD_AUDIO
-    ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+    return ContextCompat.checkSelfPermission(context, android.Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
 }
 
 fun openInputMethodSettings(context: Context) {
@@ -322,10 +266,7 @@ fun openInputMethodSettings(context: Context) {
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         context.startActivity(intent)
     } catch (e: Exception) {
-        // Fallback
-        context.startActivity(Intent(Settings.ACTION_SETTINGS).apply {
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        })
+        context.startActivity(Intent(Settings.ACTION_SETTINGS).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) })
     }
 }
 
