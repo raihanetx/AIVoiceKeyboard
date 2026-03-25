@@ -32,10 +32,10 @@ class VoiceInputView(
     private var resultText: TextView? = null
     private var resultCard: LinearLayout? = null
     
-    // Toggle buttons for engines
-    private var androidToggle: ToggleButton? = null
-    private var groqToggle: ToggleButton? = null
-    private var geminiToggle: ToggleButton? = null
+    // Actual toggle buttons for engines (inside LinearLayout containers)
+    private var androidToggleBtn: ToggleButton? = null
+    private var groqToggleBtn: ToggleButton? = null
+    private var geminiToggleBtn: ToggleButton? = null
 
     init {
         orientation = VERTICAL
@@ -132,31 +132,28 @@ class VoiceInputView(
                 orientation = VERTICAL
                 
                 // Android Offline toggle
-                androidToggle = createEngineToggle(
+                addView(createEngineToggle(
                     "Android (Offline)",
                     "Works without internet",
                     state.isUsingAndroidStt,
                     AppConstants.STT_ENGINE_ANDROID
-                )
-                addView(androidToggle)
+                ) { btn -> androidToggleBtn = btn })
                 
                 // Groq Online toggle
-                groqToggle = createEngineToggle(
+                addView(createEngineToggle(
                     "Groq (Online)",
                     "Fast & accurate, ~10K req/day free",
                     state.isUsingGroqStt,
                     AppConstants.STT_ENGINE_GROQ
-                )
-                addView(groqToggle)
+                ) { btn -> groqToggleBtn = btn })
                 
                 // Gemini Live toggle
-                geminiToggle = createEngineToggle(
+                addView(createEngineToggle(
                     "Gemini (Live)",
                     "Best quality, multimodal AI",
                     state.isUsingGeminiStt,
                     AppConstants.STT_ENGINE_GEMINI
-                )
-                addView(geminiToggle)
+                ) { btn -> geminiToggleBtn = btn })
             })
         }
     }
@@ -168,7 +165,8 @@ class VoiceInputView(
         name: String,
         description: String,
         isChecked: Boolean,
-        engineCode: String
+        engineCode: String,
+        onButtonCreated: (ToggleButton) -> Unit
     ): LinearLayout {
         return LinearLayout(context).apply {
             orientation = HORIZONTAL
@@ -186,20 +184,24 @@ class VoiceInputView(
                     context.dpToPx(48),
                     context.dpToPx(24)
                 )
+                
+                // Store reference
+                onButtonCreated(this)
+                
                 setOnClickListener {
                     // Uncheck other toggles
                     when (engineCode) {
                         AppConstants.STT_ENGINE_ANDROID -> {
-                            groqToggle?.isChecked = false
-                            geminiToggle?.isChecked = false
+                            groqToggleBtn?.isChecked = false
+                            geminiToggleBtn?.isChecked = false
                         }
                         AppConstants.STT_ENGINE_GROQ -> {
-                            androidToggle?.isChecked = false
-                            geminiToggle?.isChecked = false
+                            androidToggleBtn?.isChecked = false
+                            geminiToggleBtn?.isChecked = false
                         }
                         AppConstants.STT_ENGINE_GEMINI -> {
-                            androidToggle?.isChecked = false
-                            groqToggle?.isChecked = false
+                            androidToggleBtn?.isChecked = false
+                            groqToggleBtn?.isChecked = false
                         }
                     }
                     // Keep this toggle checked
@@ -235,9 +237,9 @@ class VoiceInputView(
         statusText?.text = state.voiceStatusText
 
         // Update toggle states
-        androidToggle?.isChecked = state.isUsingAndroidStt
-        groqToggle?.isChecked = state.isUsingGroqStt
-        geminiToggle?.isChecked = state.isUsingGeminiStt
+        androidToggleBtn?.isChecked = state.isUsingAndroidStt
+        groqToggleBtn?.isChecked = state.isUsingGroqStt
+        geminiToggleBtn?.isChecked = state.isUsingGeminiStt
 
         // Update result card visibility and content
         if (state.showResultCard && state.resultTextToShow != null) {

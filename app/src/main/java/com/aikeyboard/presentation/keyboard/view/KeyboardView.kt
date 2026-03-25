@@ -28,7 +28,7 @@ class KeyboardView(
 
     init {
         orientation = VERTICAL
-        setPadding(0, dpToPx(4), 0, dpToPx(4))
+        setPadding(0, context.dpToPx(4), 0, context.dpToPx(4))
     }
 
     /**

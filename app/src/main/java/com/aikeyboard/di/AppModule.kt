@@ -3,6 +3,7 @@ package com.aikeyboard.di
 import android.content.Context
 import com.aikeyboard.core.util.AudioRecorder
 import com.aikeyboard.data.local.PreferencesManager
+import com.aikeyboard.data.remote.api.GeminiLiveApi
 import com.aikeyboard.data.remote.api.GroqWhisperApi
 import com.aikeyboard.data.remote.api.ZAiApi
 import com.aikeyboard.data.repository.TranscriptionRepositoryImpl
@@ -24,19 +25,30 @@ object AppModule {
     // ==================== API Clients ====================
 
     private var _groqWhisperApi: GroqWhisperApi? = null
-    val groqWhisperApi: GroqWhisperApi
-        get() = _groqWhisperApi ?: GroqWhisperApi.instance.also { _groqWhisperApi = it }
-
+    private var _geminiLiveApi: GeminiLiveApi? = null
     private var _zAiApi: ZAiApi? = null
+
+    fun getGroqWhisperApi(context: Context): GroqWhisperApi {
+        return _groqWhisperApi ?: GroqWhisperApi.getInstance(context).also { _groqWhisperApi = it }
+    }
+
+    fun getGeminiLiveApi(context: Context): GeminiLiveApi {
+        return _geminiLiveApi ?: GeminiLiveApi.getInstance(context).also { _geminiLiveApi = it }
+    }
+
     val zAiApi: ZAiApi
         get() = _zAiApi ?: ZAiApi.instance.also { _zAiApi = it }
 
     // ==================== Repositories ====================
 
     private var _transcriptionRepository: TranscriptionRepository? = null
-    val transcriptionRepository: TranscriptionRepository
-        get() = _transcriptionRepository ?: TranscriptionRepositoryImpl(groqWhisperApi)
-            .also { _transcriptionRepository = it }
+    
+    fun getTranscriptionRepository(context: Context): TranscriptionRepository {
+        return _transcriptionRepository ?: TranscriptionRepositoryImpl(
+            groqWhisperApi = getGroqWhisperApi(context),
+            geminiLiveApi = getGeminiLiveApi(context)
+        ).also { _transcriptionRepository = it }
+    }
 
     private var _translationRepository: TranslationRepository? = null
     val translationRepository: TranslationRepository
@@ -58,7 +70,7 @@ object AppModule {
 
     fun getTranscribeAudioUseCase(context: Context): TranscribeAudioUseCase {
         return _transcribeAudioUseCase ?: TranscribeAudioUseCase(
-            transcriptionRepository = transcriptionRepository,
+            transcriptionRepository = getTranscriptionRepository(context),
             audioRecorder = AudioRecorder(context.applicationContext)
         ).also { _transcribeAudioUseCase = it }
     }
@@ -71,7 +83,7 @@ object AppModule {
     private var _getAvailableLanguagesUseCase: GetAvailableLanguagesUseCase? = null
     val getAvailableLanguagesUseCase: GetAvailableLanguagesUseCase
         get() = _getAvailableLanguagesUseCase ?: GetAvailableLanguagesUseCase(
-            transcriptionRepository = transcriptionRepository,
+            transcriptionRepository = _transcriptionRepository!!,
             translationRepository = translationRepository
         ).also { _getAvailableLanguagesUseCase = it }
 
@@ -83,6 +95,7 @@ object AppModule {
      */
     fun clearAll() {
         _groqWhisperApi = null
+        _geminiLiveApi = null
         _zAiApi = null
         _transcriptionRepository = null
         _translationRepository = null

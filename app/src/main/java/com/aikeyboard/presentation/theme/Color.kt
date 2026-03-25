@@ -16,6 +16,7 @@ object AppColor {
     val Background = Color(0xFF1A1A2E)
     val Surface = Color(0xFF16213E)
     val CardBackground = Color(0xFF2D2D2D)
+    val Transparent = Color.Transparent
     
     // Text colors
     val OnPrimary = Color.White
