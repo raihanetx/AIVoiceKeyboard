@@ -19,14 +19,31 @@ private val DarkColorScheme = darkColorScheme(
     onSurface = Color.White
 )
 
+/**
+ * Theme for the main Activity - handles status bar color
+ */
 @Composable
 fun AIVoiceKeyboardTheme(content: @Composable () -> Unit) {
     val colorScheme = DarkColorScheme
     val view = LocalView.current
-    SideEffect {
-        val window = (view.context as Activity).window
-        window.statusBarColor = colorScheme.background.toArgb()
-        WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = false
+    
+    if (!view.isInEditMode) {
+        SideEffect {
+            val window = (view.context as? Activity)?.window
+            window?.let {
+                it.statusBarColor = colorScheme.background.toArgb()
+                WindowCompat.getInsetsController(it, view).isAppearanceLightStatusBars = false
+            }
+        }
     }
+    
     MaterialTheme(colorScheme = colorScheme, content = content)
+}
+
+/**
+ * Theme for keyboard service - safe to use without Activity context
+ */
+@Composable
+fun KeyboardTheme(content: @Composable () -> Unit) {
+    MaterialTheme(colorScheme = DarkColorScheme, content = content)
 }

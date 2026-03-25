@@ -1,10 +1,15 @@
 package com.aikeyboard.keyboard
 
+import android.Manifest
 import android.content.pm.PackageManager
+import android.media.MediaRecorder
+import android.os.Bundle
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -17,7 +22,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.app.ActivityCompat
-import android.Manifest
+import com.aikeyboard.translation.ZAiClient
+import com.aikeyboard.voice.GeminiVoiceClient
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.io.File
 
 @Composable
 fun KeyboardContent(
@@ -29,15 +40,21 @@ fun KeyboardContent(
     var currentLanguage by remember { mutableStateOf("en") }
     var isRecording by remember { mutableStateOf(false) }
     var recognizedText by remember { mutableStateOf("") }
+    var isTranslating by remember { mutableStateOf(false) }
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    
+    // Voice recording state
+    var mediaRecorder by remember { mutableStateOf<MediaRecorder?>(null) }
+    var audioFile by remember { mutableStateOf<File?>(null) }
     
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .height(260.dp)
+            .height(280.dp)
             .background(Color(0xFF1A1A2E))
     ) {
-        // Top bar
+        // Top bar with panel buttons
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -86,6 +103,27 @@ fun KeyboardContent(
                         recognizedText = recognizedText,
                         onLanguageChange = { currentLanguage = it },
                         onToggleRecording = {
+                            if (isRecording) {
+                                // Stop recording
+                                stopRecording(mediaRecorder, audioFile) { file ->
+                                    if (file != null) {
+                                        scope.launch {
+                                            val result = GeminiVoiceClient.instance.transcribeAudio(file, currentLanguage)
+                                            result.onSuccess { text ->
+                                                recognizedText = text
+                                            }
+                                            result.onFailure { e ->
+                                                recognizedText = "Error: ${e.message}"
+                                            }
+                                        }
+                                    }
+                                }
+                            } else {
+                                // Start recording
+                                val (recorder, file) = startRecording(context)
+                                mediaRecorder = recorder
+                                audioFile = file
+                            }
                             isRecording = !isRecording
                         },
                         onInsertText = { text ->
@@ -96,7 +134,9 @@ fun KeyboardContent(
                 }
                 "translate" -> {
                     TranslatePanel(
-                        onInsertText = onTextCommit
+                        onInsertText = onTextCommit,
+                        currentLanguage = currentLanguage,
+                        onLanguageChange = { currentLanguage = it }
                     )
                 }
                 "emoji" -> {
@@ -113,7 +153,7 @@ fun KeyboardContent(
             modifier = Modifier
                 .fillMaxWidth()
                 .background(Color(0xFF16213E))
-                .padding(vertical = 2.dp),
+                .padding(vertical = 4.dp),
             horizontalArrangement = Arrangement.SpaceEvenly
         ) {
             TextButton(
@@ -121,13 +161,13 @@ fun KeyboardContent(
                 colors = ButtonDefaults.textButtonColors(
                     contentColor = if (currentLanguage == "en") Color(0xFF4285F4) else Color.Gray
                 )
-            ) { Text("EN", fontSize = 12.sp) }
+            ) { Text("EN", fontSize = 14.sp, fontWeight = FontWeight.Bold) }
             TextButton(
                 onClick = { currentLanguage = "bn" },
                 colors = ButtonDefaults.textButtonColors(
                     contentColor = if (currentLanguage == "bn") Color(0xFF4285F4) else Color.Gray
                 )
-            ) { Text("বাং", fontSize = 12.sp) }
+            ) { Text("বাং", fontSize = 14.sp, fontWeight = FontWeight.Bold) }
         }
     }
 }
@@ -145,7 +185,7 @@ fun PanelButton(text: String, selected: Boolean, onClick: () -> Unit) {
                 RoundedCornerShape(8.dp)
             )
     ) {
-        Text(text, fontSize = 14.sp, fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal)
+        Text(text, fontSize = 16.sp, fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal)
     }
 }
 
@@ -159,7 +199,10 @@ fun EnglishKeyboardContent(onKeyClick: (String) -> Unit) {
     )
     Column(modifier = Modifier.fillMaxWidth()) {
         rows.forEach { row ->
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly
+            ) {
                 row.forEach { key ->
                     KeyButton(key = key, onClick = { onKeyClick(key) })
                 }
@@ -178,7 +221,10 @@ fun BanglaKeyboardContent(onKeyClick: (String) -> Unit) {
     )
     Column(modifier = Modifier.fillMaxWidth()) {
         rows.forEach { row ->
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly
+            ) {
                 row.forEach { key -> KeyButton(key = key, onClick = { onKeyClick(key) }) }
             }
         }
@@ -191,13 +237,13 @@ fun RowScope.KeyButton(key: String, onClick: () -> Unit) {
         onClick = onClick,
         modifier = Modifier
             .padding(2.dp)
-            .height(36.dp)
+            .height(38.dp)
             .weight(1f),
         shape = RoundedCornerShape(4.dp),
         color = Color(0xFF2D2D2D)
     ) {
         Box(contentAlignment = Alignment.Center) {
-            Text(key, color = Color.White, fontSize = 14.sp)
+            Text(key, color = Color.White, fontSize = 16.sp)
         }
     }
 }
@@ -220,12 +266,12 @@ fun VoicePanel(
             FilterChip(
                 selected = currentLanguage == "en",
                 onClick = { onLanguageChange("en") },
-                label = { Text("EN", fontSize = 12.sp) }
+                label = { Text("English", fontSize = 12.sp) }
             )
             FilterChip(
                 selected = currentLanguage == "bn",
                 onClick = { onLanguageChange("bn") },
-                label = { Text("বাং", fontSize = 12.sp) }
+                label = { Text("বাংলা", fontSize = 12.sp) }
             )
         }
         
@@ -238,7 +284,8 @@ fun VoicePanel(
         ) {
             Icon(
                 if (isRecording) Icons.Default.MicOff else Icons.Default.Mic,
-                contentDescription = null
+                contentDescription = null,
+                tint = Color.White
             )
         }
         
@@ -252,52 +299,128 @@ fun VoicePanel(
         
         if (recognizedText.isNotBlank()) {
             Spacer(modifier = Modifier.height(8.dp))
-            TextButton(onClick = { onInsertText(recognizedText) }) {
-                Text("Insert: $recognizedText", color = Color(0xFF4285F4), fontSize = 12.sp)
+            Card(
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF2D2D2D)),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp)
+            ) {
+                Column(modifier = Modifier.padding(8.dp)) {
+                    Text(recognizedText, color = Color.White, fontSize = 12.sp)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    TextButton(onClick = { onInsertText(recognizedText) }) {
+                        Text("Insert Text", color = Color(0xFF4285F4), fontSize = 12.sp)
+                    }
+                }
             }
         }
     }
 }
 
 @Composable
-fun TranslatePanel(onInsertText: (String) -> Unit) {
+fun TranslatePanel(
+    onInsertText: (String) -> Unit,
+    currentLanguage: String,
+    onLanguageChange: (String) -> Unit
+) {
     var inputText by remember { mutableStateOf("") }
     var translatedText by remember { mutableStateOf("") }
+    var isTranslating by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    
+    // Target language is opposite of current
+    val targetLang = if (currentLanguage == "en") "bn" else "en"
     
     Column(
-        modifier = Modifier.fillMaxSize().padding(8.dp)
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(8.dp)
     ) {
+        // Language direction indicator
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            FilterChip(
+                selected = currentLanguage == "en",
+                onClick = { onLanguageChange("en") },
+                label = { Text("EN", fontSize = 10.sp) }
+            )
+            Icon(Icons.Default.ArrowForward, contentDescription = null, tint = Color.Gray, modifier = Modifier.size(20.dp))
+            FilterChip(
+                selected = currentLanguage == "bn",
+                onClick = { onLanguageChange("bn") },
+                label = { Text("বাং", fontSize = 10.sp) }
+            )
+        }
+        
+        Spacer(modifier = Modifier.height(8.dp))
+        
         OutlinedTextField(
             value = inputText,
             onValueChange = { inputText = it },
-            placeholder = { Text("Enter text", color = Color.Gray, fontSize = 12.sp) },
+            placeholder = { Text("Enter text to translate", color = Color.Gray, fontSize = 12.sp) },
             colors = OutlinedTextFieldDefaults.colors(
                 focusedBorderColor = Color(0xFF4285F4),
                 unfocusedBorderColor = Color.Gray,
                 focusedTextColor = Color.White,
                 unfocusedTextColor = Color.White
             ),
-            modifier = Modifier.fillMaxWidth(),
-            singleLine = true
+            modifier = Modifier.fillMaxWidth().height(50.dp),
+            singleLine = true,
+            textStyle = LocalTextStyle.current.copy(fontSize = 14.sp)
         )
         
         Spacer(modifier = Modifier.height(8.dp))
         
         Button(
-            onClick = { translatedText = "[Translated: $inputText]" },
+            onClick = {
+                if (inputText.isNotBlank()) {
+                    isTranslating = true
+                    scope.launch {
+                        val result = ZAiClient.translate(inputText, currentLanguage, targetLang)
+                        result.onSuccess { text ->
+                            translatedText = text
+                        }
+                        result.onFailure { e ->
+                            translatedText = "Error: ${e.message}"
+                        }
+                        isTranslating = false
+                    }
+                }
+            },
             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4285F4)),
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth().height(36.dp),
+            enabled = !isTranslating && inputText.isNotBlank()
         ) {
-            Text("Translate", fontSize = 12.sp)
+            if (isTranslating) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(16.dp),
+                    color = Color.White,
+                    strokeWidth = 2.dp
+                )
+            } else {
+                Text("Translate", fontSize = 12.sp)
+            }
         }
         
         if (translatedText.isNotBlank()) {
             Spacer(modifier = Modifier.height(8.dp))
-            Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF2D2D2D))) {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF2D2D2D)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
                 Column(modifier = Modifier.padding(8.dp)) {
-                    Text(translatedText, color = Color.White, fontSize = 12.sp)
+                    Text(
+                        translatedText, 
+                        color = Color.White, 
+                        fontSize = 12.sp,
+                        modifier = Modifier.fillMaxWidth()
+                    )
                     Spacer(modifier = Modifier.height(4.dp))
-                    TextButton(onClick = { onInsertText(translatedText) }) {
+                    TextButton(
+                        onClick = { onInsertText(translatedText) },
+                        modifier = Modifier.align(Alignment.End)
+                    ) {
                         Text("Insert", color = Color(0xFF4285F4), fontSize = 12.sp)
                     }
                 }
@@ -309,13 +432,14 @@ fun TranslatePanel(onInsertText: (String) -> Unit) {
 @Composable
 fun EmojiPanel(onEmojiClick: (String) -> Unit) {
     val emojis = listOf(
-        listOf("😀", "😃", "😄", "😁", "😆", "😅", "🤣", "😂"),
-        listOf("❤️", "🔥", "✨", "👍", "👎", "👏", "🎉", "💯"),
-        listOf("🥰", "😍", "🤩", "😘", "😊", "🙂", "😎", "🤔")
+        listOf("😀", "😃", "😄", "😁", "😆", "😅", "🤣", "😂", "🙂", "😊"),
+        listOf("❤️", "🔥", "✨", "👍", "👎", "👏", "🎉", "💯", "🙌", "💪"),
+        listOf("🥰", "😍", "🤩", "😘", "😎", "🤔", "😢", "😭", "😤", "🤗"),
+        listOf("🙏", "👋", "🤝", "✌️", "🤞", "👌", "✋", "👏", "🤲", "👐")
     )
     
     Column(
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
@@ -327,13 +451,55 @@ fun EmojiPanel(onEmojiClick: (String) -> Unit) {
                 row.forEach { emoji ->
                     Text(
                         text = emoji,
-                        fontSize = 24.sp,
+                        fontSize = 22.sp,
                         modifier = Modifier
                             .clickable { onEmojiClick(emoji) }
-                            .padding(6.dp)
+                            .padding(4.dp)
                     )
                 }
             }
         }
+    }
+}
+
+// Voice Recording Helper Functions
+fun startRecording(context: android.content.Context): Pair<MediaRecorder?, File?> {
+    return try {
+        val fileName = "${context.cacheDir.absolutePath}/voice_${System.currentTimeMillis()}.3gp"
+        val file = File(fileName)
+        
+        val recorder = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+            MediaRecorder(context)
+        } else {
+            @Suppress("DEPRECATION")
+            MediaRecorder()
+        }
+        
+        recorder.setAudioSource(MediaRecorder.AudioSource.MIC)
+        recorder.setOutputFormat(MediaRecorder.OutputFormat.THREE_GPP)
+        recorder.setAudioEncoder(MediaRecorder.AudioEncoder.AMR_NB)
+        recorder.setOutputFile(fileName)
+        recorder.prepare()
+        recorder.start()
+        
+        Pair(recorder, file)
+    } catch (e: Exception) {
+        Pair(null, null)
+    }
+}
+
+fun stopRecording(
+    recorder: MediaRecorder?,
+    audioFile: File?,
+    onComplete: (File?) -> Unit
+) {
+    try {
+        recorder?.apply {
+            stop()
+            release()
+        }
+        onComplete(audioFile)
+    } catch (e: Exception) {
+        onComplete(null)
     }
 }

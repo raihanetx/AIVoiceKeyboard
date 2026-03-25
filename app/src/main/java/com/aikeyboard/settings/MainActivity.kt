@@ -1,16 +1,15 @@
 package com.aikeyboard.settings
 
-import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
+import android.os.Bundle
 import android.provider.Settings
 import android.view.inputmethod.InputMethodManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
-import android.os.Bundle
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -27,7 +26,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.aikeyboard.ui.theme.AIVoiceKeyboardTheme
 import kotlinx.coroutines.delay
@@ -35,17 +33,27 @@ import kotlinx.coroutines.delay
 class MainActivity : ComponentActivity() {
     
     private val requestPermissionLauncher = registerForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { _ -> }
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        // Handle permission results
+        permissions.entries.forEach { (permission, granted) ->
+            // Permission result handled in UI through check
+        }
+    }
     
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        
+        // Auto-request microphone permission on first launch
+        if (!checkAudioPermission(this)) {
+            requestPermissionLauncher.launch(arrayOf(android.Manifest.permission.RECORD_AUDIO))
+        }
         
         setContent {
             AIVoiceKeyboardTheme {
                 SetupScreen(
                     requestAudioPermission = {
-                        requestPermissionLauncher.launch(android.Manifest.permission.RECORD_AUDIO)
+                        requestPermissionLauncher.launch(arrayOf(android.Manifest.permission.RECORD_AUDIO))
                     }
                 )
             }
@@ -63,11 +71,17 @@ fun SetupScreen(requestAudioPermission: () -> Unit) {
     
     // Check status periodically
     LaunchedEffect(Unit) {
+        // Initial check
+        keyboardEnabled = isKeyboardEnabled(context)
+        keyboardDefault = isKeyboardDefault(context)
+        audioPermissionGranted = checkAudioPermission(context)
+        
+        // Continuous monitoring
         while (true) {
+            delay(500)
             keyboardEnabled = isKeyboardEnabled(context)
             keyboardDefault = isKeyboardDefault(context)
             audioPermissionGranted = checkAudioPermission(context)
-            delay(500)
         }
     }
     
@@ -79,6 +93,23 @@ fun SetupScreen(requestAudioPermission: () -> Unit) {
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Spacer(modifier = Modifier.height(40.dp))
+        
+        // App Icon/Logo
+        Box(
+            modifier = Modifier
+                .size(80.dp)
+                .background(Color(0xFF4285F4), RoundedCornerShape(20.dp)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                Icons.Default.Keyboard,
+                contentDescription = null,
+                tint = Color.White,
+                modifier = Modifier.size(48.dp)
+            )
+        }
+        
+        Spacer(modifier = Modifier.height(16.dp))
         
         Text(
             text = "AI Voice Keyboard",
@@ -95,30 +126,30 @@ fun SetupScreen(requestAudioPermission: () -> Unit) {
             color = Color.Gray
         )
         
-        Spacer(modifier = Modifier.height(40.dp))
+        Spacer(modifier = Modifier.height(32.dp))
         
         // Step 1: Enable Keyboard
         SetupStep(
             number = 1,
             title = "Enable Keyboard",
-            description = if (keyboardEnabled) "Keyboard is enabled ✓" else "Allow AI Voice Keyboard in settings",
+            description = if (keyboardEnabled) "Keyboard is enabled ✓" else "Tap to enable keyboard in settings",
             isComplete = keyboardEnabled,
             onClick = { openInputMethodSettings(context) }
         )
         
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(12.dp))
         
         // Step 2: Set as Default
         SetupStep(
             number = 2,
-            title = "Set as Default",
-            description = if (keyboardDefault) "Keyboard is default ✓" else "Select as your default keyboard",
+            title = "Select Keyboard",
+            description = if (keyboardDefault) "Keyboard is selected ✓" else "Tap to select as active keyboard",
             isComplete = keyboardDefault,
             enabled = keyboardEnabled,
-            onClick = { openDefaultKeyboardSettings(context) }
+            onClick = { showKeyboardPicker(context) }
         )
         
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(12.dp))
         
         // Step 3: Microphone Permission
         SetupStep(
@@ -127,57 +158,108 @@ fun SetupScreen(requestAudioPermission: () -> Unit) {
             description = if (audioPermissionGranted) "Microphone access granted ✓" else "Required for voice typing",
             isComplete = audioPermissionGranted,
             enabled = keyboardEnabled,
-            onClick = { if (!audioPermissionGranted) requestAudioPermission() }
+            onClick = { 
+                if (!audioPermissionGranted) {
+                    requestAudioPermission()
+                }
+            }
         )
         
-        Spacer(modifier = Modifier.height(40.dp))
+        Spacer(modifier = Modifier.height(32.dp))
         
         // Status Card
         if (keyboardEnabled && keyboardDefault && audioPermissionGranted) {
             Card(
                 colors = CardDefaults.cardColors(containerColor = Color(0xFF1B5E20)),
-                shape = RoundedCornerShape(12.dp)
+                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier.fillMaxWidth()
             ) {
                 Row(
-                    modifier = Modifier.padding(16.dp),
+                    modifier = Modifier.padding(20.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color.White, modifier = Modifier.size(32.dp))
-                    Spacer(modifier = Modifier.width(12.dp))
+                    Icon(
+                        Icons.Default.CheckCircle, 
+                        contentDescription = null, 
+                        tint = Color.White, 
+                        modifier = Modifier.size(40.dp)
+                    )
+                    Spacer(modifier = Modifier.width(16.dp))
                     Column {
-                        Text(text = "All Set!", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                        Text(text = "Open any app and start typing", color = Color.White.copy(alpha = 0.8f), fontSize = 14.sp)
+                        Text(
+                            text = "All Set!", 
+                            color = Color.White, 
+                            fontWeight = FontWeight.Bold, 
+                            fontSize = 20.sp
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "Open any app and tap a text field to use the keyboard", 
+                            color = Color.White.copy(alpha = 0.8f), 
+                            fontSize = 14.sp
+                        )
                     }
                 }
             }
         } else {
+            // Progress indicator
+            val completedSteps = listOf(keyboardEnabled, keyboardDefault, audioPermissionGranted).count { it }
             Card(
                 colors = CardDefaults.cardColors(containerColor = Color(0xFF37474F)),
-                shape = RoundedCornerShape(12.dp)
+                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier.fillMaxWidth()
             ) {
-                Text(
-                    text = "Complete all steps above to start using the keyboard",
-                    color = Color.White,
-                    modifier = Modifier.padding(16.dp),
-                    textAlign = TextAlign.Center
-                )
+                Column(
+                    modifier = Modifier.padding(20.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = "Setup Progress: $completedSteps/3",
+                        color = Color.White,
+                        fontWeight = FontWeight.Medium,
+                        fontSize = 16.sp
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    LinearProgressIndicator(
+                        progress = { completedSteps / 3f },
+                        color = Color(0xFF4285F4),
+                        trackColor = Color(0xFF2D2D2D),
+                        modifier = Modifier.fillMaxWidth().height(8.dp).padding(horizontal = 16.dp)
+                    )
+                }
             }
         }
         
         Spacer(modifier = Modifier.weight(1f))
         
         // Quick Settings Button
-        OutlinedButton(
+        Button(
             onClick = { openInputMethodSettings(context) },
-            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
-            modifier = Modifier.fillMaxWidth()
+            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4285F4)),
+            modifier = Modifier.fillMaxWidth().height(50.dp),
+            shape = RoundedCornerShape(12.dp)
         ) {
             Icon(Icons.Default.Settings, contentDescription = null)
             Spacer(modifier = Modifier.width(8.dp))
-            Text("Open Keyboard Settings")
+            Text("Open Keyboard Settings", fontSize = 16.sp)
         }
         
-        Spacer(modifier = Modifier.height(20.dp))
+        Spacer(modifier = Modifier.height(16.dp))
+        
+        // Show keyboard picker button
+        if (keyboardEnabled && !keyboardDefault) {
+            OutlinedButton(
+                onClick = { showKeyboardPicker(context) },
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF4285F4)),
+                modifier = Modifier.fillMaxWidth().height(50.dp),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Icon(Icons.Default.Keyboard, contentDescription = null)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Switch to AI Keyboard", fontSize = 16.sp)
+            }
+            Spacer(modifier = Modifier.height(16.dp))
+        }
     }
 }
 
@@ -212,22 +294,34 @@ fun SetupStep(
         modifier = cardModifier
     ) {
         Row(
-            modifier = Modifier.padding(16.dp).fillMaxWidth(),
+            modifier = Modifier
+                .padding(16.dp)
+                .fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Box(
                 modifier = Modifier
-                    .size(40.dp)
+                    .size(44.dp)
                     .background(
                         if (isComplete) Color.Transparent else Color(0xFF4285F4),
-                        RoundedCornerShape(20.dp)
+                        RoundedCornerShape(22.dp)
                     ),
                 contentAlignment = Alignment.Center
             ) {
                 if (isComplete) {
-                    Icon(Icons.Default.Check, contentDescription = null, tint = Color.White, modifier = Modifier.size(28.dp))
+                    Icon(
+                        Icons.Default.Check, 
+                        contentDescription = null, 
+                        tint = Color.White, 
+                        modifier = Modifier.size(28.dp)
+                    )
                 } else {
-                    Text(text = number.toString(), color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                    Text(
+                        text = number.toString(), 
+                        color = Color.White, 
+                        fontWeight = FontWeight.Bold, 
+                        fontSize = 18.sp
+                    )
                 }
             }
             
@@ -249,7 +343,11 @@ fun SetupStep(
             }
             
             if (!isComplete && enabled) {
-                Icon(Icons.Default.ArrowForward, contentDescription = null, tint = Color.White.copy(alpha = 0.6f))
+                Icon(
+                    Icons.Default.ArrowForward, 
+                    contentDescription = null, 
+                    tint = Color.White.copy(alpha = 0.6f)
+                )
             }
         }
     }
@@ -281,15 +379,15 @@ fun openInputMethodSettings(context: Context) {
     }
 }
 
-fun openDefaultKeyboardSettings(context: Context) {
+fun showKeyboardPicker(context: Context) {
     try {
-        // ACTION_SHOW_INPUT_METHOD_PICKER is available from API 30
         if (Build.VERSION.SDK_INT >= 30) {
             val intent = Intent("android.settings.SHOW_INPUT_METHOD_PICKER")
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             context.startActivity(intent)
         } else {
-            openInputMethodSettings(context)
+            val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+            imm.showInputMethodPicker()
         }
     } catch (e: Exception) {
         openInputMethodSettings(context)
