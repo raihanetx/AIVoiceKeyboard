@@ -27,32 +27,14 @@ jobs:
     - name: Grant execute permission for gradlew
       run: chmod +x gradlew
 
-    - name: Create Secrets.kt from GitHub Secret
+    - name: Create Secrets.kt
       run: |
         mkdir -p app/src/main/java/com/aikeyboard
-        cat > app/src/main/java/com/aikeyboard/Secrets.kt << 'EOF'
-        package com.aikeyboard
-
-        object Secrets {
-            const val GROQ_API_KEY = "${{ secrets.GROQ_API_KEY }}"
-        }
-        EOF
-      if: env.GROQ_API_KEY != ''
-      env:
-        GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
-
-    - name: Create default Secrets.kt if not set
-      run: |
-        if [ ! -f app/src/main/java/com/aikeyboard/Secrets.kt ]; then
-          mkdir -p app/src/main/java/com/aikeyboard
-          cat > app/src/main/java/com/aikeyboard/Secrets.kt << 'EOF'
-          package com.aikeyboard
-
-          object Secrets {
-              const val GROQ_API_KEY = ""
-          }
-          EOF
-        fi
+        echo "package com.aikeyboard" > app/src/main/java/com/aikeyboard/Secrets.kt
+        echo "" >> app/src/main/java/com/aikeyboard/Secrets.kt
+        echo "object Secrets {" >> app/src/main/java/com/aikeyboard/Secrets.kt
+        echo "    const val GROQ_API_KEY = \"${{ secrets.GROQ_API_KEY }}\"" >> app/src/main/java/com/aikeyboard/Secrets.kt
+        echo "}" >> app/src/main/java/com/aikeyboard/Secrets.kt
 
     - name: Build Debug APK
       run: ./gradlew assembleDebug
