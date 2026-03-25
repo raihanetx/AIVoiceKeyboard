@@ -8,6 +8,7 @@ import android.os.Build
 import android.provider.Settings
 import android.view.inputmethod.InputMethodManager
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import android.os.Bundle
 import androidx.compose.foundation.background
@@ -282,8 +283,9 @@ fun openInputMethodSettings(context: Context) {
 
 fun openDefaultKeyboardSettings(context: Context) {
     try {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            val intent = Intent(Settings.ACTION_SHOW_INPUT_METHOD_PICKER)
+        // ACTION_SHOW_INPUT_METHOD_PICKER is available from API 30
+        if (Build.VERSION.SDK_INT >= 30) {
+            val intent = Intent("android.settings.SHOW_INPUT_METHOD_PICKER")
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             context.startActivity(intent)
         } else {
