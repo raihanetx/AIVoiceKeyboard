@@ -81,7 +81,7 @@ fun KeyboardContent(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .height(280.dp)
+            .height(300.dp)
             .background(KeyboardBackground)
     ) {
         // Top bar with panel buttons

@@ -20,8 +20,16 @@
 -keep class * implements com.google.gson.JsonSerializer
 -keep class * implements com.google.gson.JsonDeserializer
 
-# Keep data models for JSON serialization
--keep class com.aikeyboard.** { *; }
+# Keep only necessary public APIs from app package
+# Don't keep API keys - let them be obfuscated
+-keep class com.aikeyboard.keyboard.** { public *; }
+-keep class com.aikeyboard.settings.** { public *; }
+-keep class com.aikeyboard.voice.GeminiVoiceClient { public *; }
+-keep class com.aikeyboard.translation.ZAiClient { public *; }
+-keep class com.aikeyboard.ui.theme.** { *; }
+
+# Obfuscate the Application class but keep it for manifest
+-keep class com.aikeyboard.AiKeyboardApp { public <init>(); }
 
 # Keep Kotlin coroutines
 -keepclassmembers class kotlinx.coroutines.** {
@@ -33,3 +41,11 @@
 # Keep Compose
 -keep class androidx.compose.** { *; }
 -dontwarn androidx.compose.**
+
+# Remove logging in release
+-assumenosideeffects class android.util.Log {
+    public static boolean isLoggable(java.lang.String, int);
+    public static int v(...);
+    public static int d(...);
+    public static int i(...);
+}
