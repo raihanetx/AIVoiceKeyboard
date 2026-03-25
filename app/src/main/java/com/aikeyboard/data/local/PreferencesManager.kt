@@ -6,6 +6,8 @@ import com.aikeyboard.core.constants.AppConstants
 import com.aikeyboard.core.constants.AppConstants.PREF_LANGUAGE
 import com.aikeyboard.core.constants.AppConstants.PREF_LAST_PANEL
 import com.aikeyboard.core.constants.AppConstants.PREF_STT_ENGINE
+import com.aikeyboard.core.constants.AppConstants.PREF_GROQ_API_KEY
+import com.aikeyboard.core.constants.AppConstants.PREF_GEMINI_API_KEY
 import com.aikeyboard.core.constants.AppConstants.STT_ENGINE_ANDROID
 import com.aikeyboard.core.constants.AppConstants.STT_ENGINE_GROQ
 import com.aikeyboard.core.constants.AppConstants.STT_ENGINE_GEMINI
@@ -112,6 +114,52 @@ class PreferencesManager(context: Context) {
             .apply()
         Log.d(TAG, "Last panel set to: $panel")
     }
+
+    // ==================== API Key Preferences ====================
+
+    /**
+     * Get Groq API key
+     */
+    fun getGroqApiKey(): String {
+        return sharedPreferences.getString(PREF_GROQ_API_KEY, "") ?: ""
+    }
+
+    /**
+     * Set Groq API key
+     */
+    fun setGroqApiKey(key: String) {
+        sharedPreferences.edit()
+            .putString(PREF_GROQ_API_KEY, key.trim())
+            .apply()
+        Log.d(TAG, "Groq API key updated")
+    }
+
+    /**
+     * Check if Groq API key is configured
+     */
+    fun isGroqApiKeyConfigured(): Boolean = getGroqApiKey().isNotBlank()
+
+    /**
+     * Get Gemini API key
+     */
+    fun getGeminiApiKey(): String {
+        return sharedPreferences.getString(PREF_GEMINI_API_KEY, "") ?: ""
+    }
+
+    /**
+     * Set Gemini API key
+     */
+    fun setGeminiApiKey(key: String) {
+        sharedPreferences.edit()
+            .putString(PREF_GEMINI_API_KEY, key.trim())
+            .apply()
+        Log.d(TAG, "Gemini API key updated")
+    }
+
+    /**
+     * Check if Gemini API key is configured
+     */
+    fun isGeminiApiKeyConfigured(): Boolean = getGeminiApiKey().isNotBlank()
 
     // ==================== Utility Methods ====================
 

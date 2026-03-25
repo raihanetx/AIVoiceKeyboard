@@ -35,11 +35,17 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             val language = preferencesManager.getLanguage()
             val sttEngine = preferencesManager.getSttEngine()
             val lastPanel = preferencesManager.getLastPanel()
+            val groqApiKey = preferencesManager.getGroqApiKey()
+            val geminiApiKey = preferencesManager.getGeminiApiKey()
 
             _uiState.value = _uiState.value.copy(
                 selectedLanguage = Language.fromCode(language),
                 sttEngine = sttEngine,
-                lastPanel = lastPanel
+                lastPanel = lastPanel,
+                groqApiKey = groqApiKey,
+                geminiApiKey = geminiApiKey,
+                groqKeyConfigured = groqApiKey.isNotBlank(),
+                geminiKeyConfigured = geminiApiKey.isNotBlank()
             )
         }
     }
@@ -58,6 +64,28 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     fun setSttEngine(engine: String) {
         preferencesManager.setSttEngine(engine)
         _uiState.value = _uiState.value.copy(sttEngine = engine)
+    }
+
+    /**
+     * Set Groq API key
+     */
+    fun setGroqApiKey(key: String) {
+        preferencesManager.setGroqApiKey(key)
+        _uiState.value = _uiState.value.copy(
+            groqApiKey = key,
+            groqKeyConfigured = key.isNotBlank()
+        )
+    }
+
+    /**
+     * Set Gemini API key
+     */
+    fun setGeminiApiKey(key: String) {
+        preferencesManager.setGeminiApiKey(key)
+        _uiState.value = _uiState.value.copy(
+            geminiApiKey = key,
+            geminiKeyConfigured = key.isNotBlank()
+        )
     }
 
     /**
@@ -84,6 +112,10 @@ data class SettingsUiState(
     val selectedLanguage: Language = Language.ENGLISH,
     val sttEngine: String = "android",
     val lastPanel: String = "keyboard",
+    val groqApiKey: String = "",
+    val geminiApiKey: String = "",
+    val groqKeyConfigured: Boolean = false,
+    val geminiKeyConfigured: Boolean = false,
     val isLoading: Boolean = false,
     val error: String? = null
 )

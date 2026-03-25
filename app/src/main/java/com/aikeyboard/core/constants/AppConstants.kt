@@ -46,6 +46,10 @@ object AppConstants {
     const val PREF_STT_ENGINE = "pref_stt_engine"
     const val PREF_LAST_PANEL = "pref_last_panel"
     
+    // API Key SharedPreferences Keys
+    const val PREF_GROQ_API_KEY = "pref_groq_api_key"
+    const val PREF_GEMINI_API_KEY = "pref_gemini_api_key"
+    
     // Animation Durations (ms)
     const val ANIMATION_DURATION_SHORT = 200
     const val ANIMATION_DURATION_MEDIUM = 300

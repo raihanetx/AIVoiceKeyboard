@@ -1,8 +1,9 @@
 package com.aikeyboard.data.remote.api
 
+import android.content.Context
 import android.util.Log
 import com.aikeyboard.core.constants.ApiConstants
-import com.aikeyboard.core.security.Secrets
+import com.aikeyboard.data.local.PreferencesManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
@@ -23,13 +24,15 @@ private const val TAG = "GeminiLiveApi"
  * Free tier: 15 RPM, 1 million tokens/day
  * Get API key from: https://aistudio.google.com/apikey
  */
-class GeminiLiveApi {
+class GeminiLiveApi(private val context: Context) {
 
     private val client = OkHttpClient.Builder()
         .connectTimeout(ApiConstants.CONNECT_TIMEOUT, TimeUnit.SECONDS)
         .readTimeout(ApiConstants.READ_TIMEOUT, TimeUnit.SECONDS)
         .writeTimeout(ApiConstants.WRITE_TIMEOUT, TimeUnit.SECONDS)
         .build()
+
+    private val preferencesManager: PreferencesManager by lazy { PreferencesManager.getInstance(context) }
 
     /**
      * Transcribe audio file to text using Gemini 2.5 Flash
@@ -51,10 +54,10 @@ class GeminiLiveApi {
                 return@withContext Result.failure(Exception("Audio file is empty"))
             }
 
-            // Check API key
-            val apiKey = Secrets.GEMINI_API_KEY
+            // Check API key from PreferencesManager
+            val apiKey = preferencesManager.getGeminiApiKey()
             if (apiKey.isBlank()) {
-                return@withContext Result.failure(Exception("Gemini API key not configured. Get free key from https://aistudio.google.com/apikey"))
+                return@withContext Result.failure(Exception("Gemini API key not configured. Go to Settings > API Keys to add your key. Get free key from https://aistudio.google.com/apikey"))
             }
 
             val audioBytes = audioFile.readBytes()
@@ -141,7 +144,7 @@ class GeminiLiveApi {
      * Check if the API is configured and available
      */
     fun isConfigured(): Boolean {
-        return Secrets.isGeminiApiKeyConfigured()
+        return preferencesManager.isGeminiApiKeyConfigured()
     }
 
     /**
@@ -182,6 +185,15 @@ class GeminiLiveApi {
     }
 
     companion object {
-        val instance by lazy { GeminiLiveApi() }
+        @Volatile
+        private var instance: GeminiLiveApi? = null
+
+        fun getInstance(context: Context): GeminiLiveApi {
+            return instance ?: synchronized(this) {
+                instance ?: GeminiLiveApi(context.applicationContext).also { 
+                    instance = it 
+                }
+            }
+        }
     }
 }

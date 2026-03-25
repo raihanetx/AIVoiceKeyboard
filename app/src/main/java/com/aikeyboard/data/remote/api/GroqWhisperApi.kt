@@ -1,9 +1,9 @@
 package com.aikeyboard.data.remote.api
 
+import android.content.Context
 import android.util.Log
 import com.aikeyboard.core.constants.ApiConstants
-import com.aikeyboard.core.security.Secrets
-import com.aikeyboard.core.util.NetworkUtils
+import com.aikeyboard.data.local.PreferencesManager
 import com.aikeyboard.data.remote.dto.TranscriptionError
 import com.aikeyboard.data.remote.dto.TranscriptionResponse
 import kotlinx.coroutines.Dispatchers
@@ -13,6 +13,7 @@ import okhttp3.MultipartBody
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.asRequestBody
+import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.File
 import java.net.SocketTimeoutException
 import java.net.UnknownHostException
@@ -27,13 +28,15 @@ private const val TAG = "GroqWhisperApi"
  * Free tier: ~10,000 requests/day
  * Get API key from: https://console.groq.com
  */
-class GroqWhisperApi {
+class GroqWhisperApi(private val context: Context) {
 
     private val client = OkHttpClient.Builder()
         .connectTimeout(ApiConstants.CONNECT_TIMEOUT, TimeUnit.SECONDS)
         .readTimeout(ApiConstants.READ_TIMEOUT, TimeUnit.SECONDS)
         .writeTimeout(ApiConstants.WRITE_TIMEOUT, TimeUnit.SECONDS)
         .build()
+
+    private val preferencesManager: PreferencesManager by lazy { PreferencesManager.getInstance(context) }
 
     /**
      * Transcribe audio file to text
@@ -55,10 +58,10 @@ class GroqWhisperApi {
                 return@withContext Result.failure(Exception("Audio file is empty"))
             }
 
-            // Check API key
-            val apiKey = Secrets.GROQ_API_KEY
+            // Check API key from PreferencesManager
+            val apiKey = preferencesManager.getGroqApiKey()
             if (apiKey.isBlank()) {
-                return@withContext Result.failure(Exception("Groq API key not configured"))
+                return@withContext Result.failure(Exception("Groq API key not configured. Go to Settings > API Keys to add your key. Get free key from https://console.groq.com"))
             }
 
             val audioBytes = audioFile.readBytes()
@@ -71,8 +74,8 @@ class GroqWhisperApi {
                 .setType(MultipartBody.FORM)
                 .addFormDataPart("model", ApiConstants.GROQ_WHISPER_MODEL)
                 .addFormDataPart("language", if (language == "bn") "bn" else "en")
-                .addFormDataPart("response_format", ApiConstants.RESPONSE_FORMAT_JSON)
-                .addFormDataPart("temperature", ApiConstants.TRANSCRIPTION_TEMPERATURE.toString())
+                .addFormDataPart("response_format", "json")
+                .addFormDataPart("temperature", "0.0")
                 .addFormDataPart(
                     "file",
                     audioFile.name,
@@ -120,7 +123,7 @@ class GroqWhisperApi {
      * Check if the API is configured and available
      */
     fun isConfigured(): Boolean {
-        return Secrets.isGroqApiKeyConfigured()
+        return preferencesManager.isGroqApiKeyConfigured()
     }
 
     /**
@@ -159,6 +162,15 @@ class GroqWhisperApi {
     }
 
     companion object {
-        val instance by lazy { GroqWhisperApi() }
+        @Volatile
+        private var instance: GroqWhisperApi? = null
+
+        fun getInstance(context: Context): GroqWhisperApi {
+            return instance ?: synchronized(this) {
+                instance ?: GroqWhisperApi(context.applicationContext).also { 
+                    instance = it 
+                }
+            }
+        }
     }
 }
