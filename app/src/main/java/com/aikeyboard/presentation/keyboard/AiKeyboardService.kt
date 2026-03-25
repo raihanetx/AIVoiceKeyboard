@@ -17,11 +17,11 @@ import androidx.core.app.ActivityCompat
 import com.aikeyboard.core.constants.ApiConstants
 import com.aikeyboard.core.constants.AppConstants
 import com.aikeyboard.core.extension.dpToPx
-import com.aikeyboard.core.security.Secrets
 import com.aikeyboard.core.util.AudioRecorder
+import com.aikeyboard.data.local.PreferencesManager
+import com.aikeyboard.data.remote.api.GeminiLiveApi
 import com.aikeyboard.data.remote.api.GroqWhisperApi
 import com.aikeyboard.data.remote.api.ZAiApi
-import com.aikeyboard.data.remote.api.GeminiLiveApi
 import com.aikeyboard.domain.model.Language
 import com.aikeyboard.domain.model.TranscriptionResult
 import com.aikeyboard.domain.model.TranslationResult
@@ -55,10 +55,13 @@ class AiKeyboardService : InputMethodService() {
     private var audioRecorder: AudioRecorder? = null
     private var isRecording = false
 
-    // API clients
-    private val groqWhisperApi = GroqWhisperApi.instance
-    private val geminiLiveApi = GeminiLiveApi.instance
-    private val zAiApi = ZAiApi.instance
+    // Preferences
+    private val preferencesManager: PreferencesManager by lazy { PreferencesManager.getInstance(this) }
+
+    // API clients - lazy initialized with context
+    private val groqWhisperApi: GroqWhisperApi by lazy { GroqWhisperApi.getInstance(this) }
+    private val geminiLiveApi: GeminiLiveApi by lazy { GeminiLiveApi.getInstance(this) }
+    private val zAiApi: ZAiApi by lazy { ZAiApi.instance }
 
     // Views
     private var mainLayout: LinearLayout? = null
@@ -370,8 +373,8 @@ class AiKeyboardService : InputMethodService() {
      * Start Groq recording
      */
     private fun startGroqRecording() {
-        if (!Secrets.isGroqApiKeyConfigured()) {
-            controller.setRecordingStatus(false, "Groq API key not set. Get free key from console.groq.com")
+        if (!preferencesManager.isGroqApiKeyConfigured()) {
+            controller.setRecordingStatus(false, "Groq API key not set. Go to Settings > API Keys")
             isRecording = false
             return
         }
@@ -390,8 +393,8 @@ class AiKeyboardService : InputMethodService() {
      * Start Gemini recording
      */
     private fun startGeminiRecording() {
-        if (!Secrets.isGeminiApiKeyConfigured()) {
-            controller.setRecordingStatus(false, "Gemini API key not set. Get free key from aistudio.google.com/apikey")
+        if (!preferencesManager.isGeminiApiKeyConfigured()) {
+            controller.setRecordingStatus(false, "Gemini API key not set. Go to Settings > API Keys")
             isRecording = false
             return
         }
