@@ -5,7 +5,7 @@ import androidx.compose.ui.graphics.Color
 /**
  * Application color palette
  */
-object Color {
+object AppColor {
     // Primary colors
     val Primary = Color(0xFF4285F4)
     val PrimaryVariant = Color(0xFF1A73E8)

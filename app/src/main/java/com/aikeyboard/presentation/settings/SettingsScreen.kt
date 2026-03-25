@@ -23,7 +23,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.aikeyboard.core.constants.AppConstants
 import com.aikeyboard.domain.model.Language
 import com.aikeyboard.presentation.theme.AIVoiceKeyboardTheme
-import com.aikeyboard.presentation.theme.Color
+import com.aikeyboard.presentation.theme.AppColor
 
 /**
  * Settings screen composable
@@ -39,7 +39,7 @@ fun SettingsScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color.Background)
+                .background(AppColor.Background)
                 .verticalScroll(rememberScrollState())
                 .padding(16.dp)
         ) {
@@ -48,7 +48,7 @@ fun SettingsScreen(
                 text = "Settings",
                 fontSize = 24.sp,
                 fontWeight = FontWeight.Bold,
-                color = Color.OnBackground
+                color = AppColor.OnBackground
             )
 
             Spacer(modifier = Modifier.height(24.dp))
@@ -99,7 +99,7 @@ fun SettingsScreen(
             // Reset Button
             OutlinedButton(
                 onClick = { viewModel.resetSettings() },
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.Error),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = AppColor.Error),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Icon(Icons.Default.Refresh, contentDescription = null)
@@ -120,11 +120,11 @@ fun SettingsSection(
             text = title,
             fontSize = 16.sp,
             fontWeight = FontWeight.Medium,
-            color = Color.TextSecondary
+            color = AppColor.TextSecondary
         )
         Spacer(modifier = Modifier.height(8.dp))
         Card(
-            colors = CardDefaults.cardColors(containerColor = Color.CardBackground),
+            colors = CardDefaults.cardColors(containerColor = AppColor.CardBackground),
             shape = RoundedCornerShape(12.dp),
             modifier = Modifier.fillMaxWidth()
         ) {
@@ -152,12 +152,12 @@ fun LanguageSelector(
                 RadioButton(
                     selected = selectedLanguage == language,
                     onClick = { onLanguageSelected(language) },
-                    colors = RadioButtonDefaults.colors(selectedColor = Color.Primary)
+                    colors = RadioButtonDefaults.colors(selectedColor = AppColor.Primary)
                 )
                 Spacer(modifier = Modifier.width(12.dp))
                 Text(
                     text = "${language.displayName} (${language.nativeName})",
-                    color = Color.OnBackground,
+                    color = AppColor.OnBackground,
                     fontSize = 16.sp
                 )
             }
@@ -221,9 +221,9 @@ fun SttEngineOption(
     Card(
         colors = CardDefaults.cardColors(
             containerColor = when {
-                isSelected -> Color.Primary.copy(alpha = 0.1f)
-                !isAvailable -> Color.Surface.copy(alpha = 0.5f)
-                else -> Color.Surface
+                isSelected -> AppColor.Primary.copy(alpha = 0.1f)
+                !isAvailable -> AppColor.Surface.copy(alpha = 0.5f)
+                else -> AppColor.Surface
             }
         ),
         shape = RoundedCornerShape(8.dp),
@@ -240,21 +240,21 @@ fun SttEngineOption(
                 selected = isSelected,
                 onClick = onSelect,
                 colors = RadioButtonDefaults.colors(
-                    selectedColor = Color.Primary,
-                    unselectedColor = if (isAvailable) Color.OnSurface.copy(alpha = 0.6f) else Color.OnSurface.copy(alpha = 0.3f)
+                    selectedColor = AppColor.Primary,
+                    unselectedColor = if (isAvailable) AppColor.OnSurface.copy(alpha = 0.6f) else AppColor.OnSurface.copy(alpha = 0.3f)
                 )
             )
             Spacer(modifier = Modifier.width(12.dp))
             Column {
                 Text(
                     text = title,
-                    color = if (isAvailable) Color.OnBackground else Color.OnBackground.copy(alpha = 0.5f),
+                    color = if (isAvailable) AppColor.OnBackground else AppColor.OnBackground.copy(alpha = 0.5f),
                     fontWeight = FontWeight.Medium,
                     fontSize = 14.sp
                 )
                 Text(
                     text = description,
-                    color = if (!isAvailable) Color.Error.copy(alpha = 0.7f) else Color.TextSecondary,
+                    color = if (!isAvailable) AppColor.Error.copy(alpha = 0.7f) else AppColor.TextSecondary,
                     fontSize = 12.sp
                 )
             }
@@ -317,7 +317,7 @@ fun ApiKeyInputField(
         ) {
             Text(
                 text = label,
-                color = Color.OnBackground,
+                color = AppColor.OnBackground,
                 fontWeight = FontWeight.Medium,
                 fontSize = 14.sp
             )
@@ -326,7 +326,7 @@ fun ApiKeyInputField(
                 Icon(
                     Icons.Default.CheckCircle,
                     contentDescription = "Configured",
-                    tint = Color.Success,
+                    tint = AppColor.Success,
                     modifier = Modifier.size(16.dp)
                 )
             }
@@ -337,7 +337,7 @@ fun ApiKeyInputField(
         OutlinedTextField(
             value = value,
             onValueChange = onValueChange,
-            placeholder = { Text(placeholder, color = Color.TextSecondary) },
+            placeholder = { Text(placeholder, color = AppColor.TextSecondary) },
             visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation(),
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
             trailingIcon = {
@@ -345,16 +345,16 @@ fun ApiKeyInputField(
                     Icon(
                         imageVector = if (showPassword) Icons.Default.VisibilityOff else Icons.Default.Visibility,
                         contentDescription = if (showPassword) "Hide" else "Show",
-                        tint = Color.TextSecondary
+                        tint = AppColor.TextSecondary
                     )
                 }
             },
             singleLine = true,
             modifier = Modifier.fillMaxWidth(),
             colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = Color.Primary,
-                unfocusedBorderColor = Color.TextSecondary.copy(alpha = 0.3f),
-                cursorColor = Color.Primary
+                focusedBorderColor = AppColor.Primary,
+                unfocusedBorderColor = AppColor.TextSecondary.copy(alpha = 0.3f),
+                cursorColor = AppColor.Primary
             )
         )
         
@@ -362,7 +362,7 @@ fun ApiKeyInputField(
         
         Text(
             text = helperText,
-            color = Color.TextSecondary,
+            color = AppColor.TextSecondary,
             fontSize = 11.sp
         )
     }
@@ -378,19 +378,19 @@ fun AboutCard() {
             Icon(
                 Icons.Default.Info,
                 contentDescription = null,
-                tint = Color.Primary
+                tint = AppColor.Primary
             )
             Spacer(modifier = Modifier.width(12.dp))
             Column {
                 Text(
                     text = "AI Voice Keyboard",
-                    color = Color.OnBackground,
+                    color = AppColor.OnBackground,
                     fontWeight = FontWeight.Bold,
                     fontSize = 16.sp
                 )
                 Text(
                     text = "Version 3.0.0",
-                    color = Color.TextSecondary,
+                    color = AppColor.TextSecondary,
                     fontSize = 12.sp
                 )
             }
@@ -402,7 +402,7 @@ fun AboutCard() {
             text = "A smart keyboard with AI-powered voice input and translation features. " +
                    "Supports English and Bengali languages with both offline and online " +
                    "speech recognition options.",
-            color = Color.TextSecondary,
+            color = AppColor.TextSecondary,
             fontSize = 14.sp
         )
     }

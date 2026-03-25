@@ -32,7 +32,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import com.aikeyboard.core.constants.AppConstants
 import com.aikeyboard.presentation.theme.AIVoiceKeyboardTheme
-import com.aikeyboard.presentation.theme.Color
+import com.aikeyboard.presentation.theme.AppColor
 
 private const val TAG = "MainActivity"
 
@@ -132,7 +132,7 @@ fun MainScreen(requestMicPermission: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.Background)
+            .background(AppColor.Background)
             .padding(20.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
@@ -143,7 +143,7 @@ fun MainScreen(requestMicPermission: () -> Unit) {
             modifier = Modifier
                 .size(70.dp)
                 .background(
-                    if (allDone) Color.Success else Color.Primary,
+                    if (allDone) AppColor.Success else AppColor.Primary,
                     RoundedCornerShape(16.dp)
                 ),
             contentAlignment = Alignment.Center
@@ -151,7 +151,7 @@ fun MainScreen(requestMicPermission: () -> Unit) {
             Icon(
                 if (allDone) Icons.Default.Check else Icons.Default.Keyboard,
                 contentDescription = null,
-                tint = Color.OnPrimary,
+                tint = AppColor.OnPrimary,
                 modifier = Modifier.size(36.dp)
             )
         }
@@ -162,7 +162,7 @@ fun MainScreen(requestMicPermission: () -> Unit) {
             text = if (allDone) "Ready to Use!" else "AI Voice Keyboard",
             fontSize = 22.sp,
             fontWeight = FontWeight.Bold,
-            color = Color.OnBackground
+            color = AppColor.OnBackground
         )
 
         Spacer(modifier = Modifier.height(24.dp))
@@ -189,7 +189,7 @@ fun SetupCompleteCard() {
     val context = LocalContext.current
 
     Card(
-        colors = CardDefaults.cardColors(containerColor = Color.Success),
+        colors = CardDefaults.cardColors(containerColor = AppColor.Success),
         shape = RoundedCornerShape(16.dp),
         modifier = Modifier.fillMaxWidth()
     ) {
@@ -200,20 +200,20 @@ fun SetupCompleteCard() {
             Icon(
                 Icons.Default.CheckCircle,
                 contentDescription = null,
-                tint = Color.OnPrimary,
+                tint = AppColor.OnPrimary,
                 modifier = Modifier.size(48.dp)
             )
             Spacer(modifier = Modifier.height(12.dp))
             Text(
                 text = "Setup Complete!",
-                color = Color.OnPrimary,
+                color = AppColor.OnPrimary,
                 fontWeight = FontWeight.Bold,
                 fontSize = 20.sp
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
                 text = "Open any app with a text field\ntap on it to use the keyboard",
-                color = Color.OnPrimary.copy(alpha = 0.9f),
+                color = AppColor.OnPrimary.copy(alpha = 0.9f),
                 fontSize = 14.sp,
                 textAlign = TextAlign.Center
             )
@@ -230,7 +230,7 @@ fun SetupCompleteCard() {
                 Toast.LENGTH_LONG
             ).show()
         },
-        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.OnBackground),
+        colors = ButtonDefaults.outlinedButtonColors(contentColor = AppColor.OnBackground),
         modifier = Modifier
             .fillMaxWidth()
             .height(50.dp),
@@ -281,8 +281,8 @@ fun SetupCards(
     val done = listOf(keyboardEnabled, keyboardSelected, micGranted).count { it }
     LinearProgressIndicator(
         progress = { done / 3f },
-        color = Color.Primary,
-        trackColor = Color.CardBackground,
+        color = AppColor.Primary,
+        trackColor = AppColor.CardBackground,
         modifier = Modifier
             .fillMaxWidth()
             .height(8.dp)
@@ -290,7 +290,7 @@ fun SetupCards(
     Spacer(modifier = Modifier.height(8.dp))
     Text(
         text = "$done of 3 complete",
-        color = Color.TextSecondary,
+        color = AppColor.TextSecondary,
         fontSize = 14.sp
     )
 
@@ -301,7 +301,7 @@ fun SetupCards(
         !keyboardEnabled -> {
             Button(
                 onClick = onEnableClick,
-                colors = ButtonDefaults.buttonColors(containerColor = Color.Primary),
+                colors = ButtonDefaults.buttonColors(containerColor = AppColor.Primary),
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(50.dp),
@@ -315,7 +315,7 @@ fun SetupCards(
         !keyboardSelected -> {
             Button(
                 onClick = onSelectClick,
-                colors = ButtonDefaults.buttonColors(containerColor = Color.Success),
+                colors = ButtonDefaults.buttonColors(containerColor = AppColor.Success),
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(50.dp),
@@ -329,7 +329,7 @@ fun SetupCards(
             Spacer(modifier = Modifier.height(10.dp))
 
             Card(
-                colors = CardDefaults.cardColors(containerColor = Color.Warning.copy(alpha = 0.2f)),
+                colors = CardDefaults.cardColors(containerColor = AppColor.Warning.copy(alpha = 0.2f)),
                 shape = RoundedCornerShape(8.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
@@ -337,11 +337,11 @@ fun SetupCards(
                     modifier = Modifier.padding(12.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(Icons.Default.Info, contentDescription = null, tint = Color.Warning)
+                    Icon(Icons.Default.Info, contentDescription = null, tint = AppColor.Warning)
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
                         text = "Swipe down notification bar and tap 'Change keyboard'",
-                        color = Color.OnBackground,
+                        color = AppColor.OnBackground,
                         fontSize = 13.sp
                     )
                 }
@@ -350,7 +350,7 @@ fun SetupCards(
         !micGranted -> {
             Button(
                 onClick = onMicClick,
-                colors = ButtonDefaults.buttonColors(containerColor = Color.Primary),
+                colors = ButtonDefaults.buttonColors(containerColor = AppColor.Primary),
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(50.dp),
@@ -375,8 +375,8 @@ fun StatusCard(
     Card(
         colors = CardDefaults.cardColors(
             containerColor = when {
-                isDone -> Color.Success
-                enabled -> Color.CardBackground
+                isDone -> AppColor.Success
+                enabled -> AppColor.CardBackground
                 else -> Color(0xFF1A1A1A)
             }
         ),
@@ -392,9 +392,9 @@ fun StatusCard(
                 modifier = Modifier
                     .size(32.dp)
                     .background(
-                        if (isDone) Color.Transparent
-                        else if (enabled) Color.Primary
-                        else Color.TextSecondary,
+                        if (isDone) AppColor.Transparent
+                        else if (enabled) AppColor.Primary
+                        else AppColor.TextSecondary,
                         RoundedCornerShape(16.dp)
                     ),
                 contentAlignment = Alignment.Center
@@ -403,13 +403,13 @@ fun StatusCard(
                     Icon(
                         Icons.Default.Check,
                         contentDescription = null,
-                        tint = Color.OnPrimary,
+                        tint = AppColor.OnPrimary,
                         modifier = Modifier.size(20.dp)
                     )
                 } else {
                     Text(
                         text = if (enabled) "?" else "✕",
-                        color = Color.OnPrimary,
+                        color = AppColor.OnPrimary,
                         fontWeight = FontWeight.Bold,
                         fontSize = 14.sp
                     )
@@ -421,14 +421,14 @@ fun StatusCard(
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = title,
-                    color = if (enabled) Color.OnBackground else Color.TextSecondary,
+                    color = if (enabled) AppColor.OnBackground else AppColor.TextSecondary,
                     fontWeight = FontWeight.Medium,
                     fontSize = 14.sp
                 )
                 if (subtitle != null) {
                     Text(
                         text = subtitle,
-                        color = Color.Warning,
+                        color = AppColor.Warning,
                         fontSize = 11.sp
                     )
                 }
@@ -438,7 +438,7 @@ fun StatusCard(
                 Icon(
                     Icons.Default.ArrowForward,
                     contentDescription = null,
-                    tint = Color.OnBackground.copy(alpha = 0.5f)
+                    tint = AppColor.OnBackground.copy(alpha = 0.5f)
                 )
             }
         }

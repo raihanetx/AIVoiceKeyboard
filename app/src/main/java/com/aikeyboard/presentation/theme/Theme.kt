@@ -4,7 +4,6 @@ import android.app.Activity
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
@@ -13,15 +12,15 @@ import androidx.core.view.WindowCompat
  * Dark color scheme for the application
  */
 private val DarkColorScheme = darkColorScheme(
-    primary = Color.Primary,
-    secondary = Color.Secondary,
-    background = Color.Background,
-    surface = Color.Surface,
-    onPrimary = Color.OnPrimary,
-    onBackground = Color.OnBackground,
-    onSurface = Color.OnSurface,
-    error = Color.Error,
-    onError = Color.White
+    primary = AppColor.Primary,
+    secondary = AppColor.Secondary,
+    background = AppColor.Background,
+    surface = AppColor.Surface,
+    onPrimary = AppColor.OnPrimary,
+    onBackground = AppColor.OnBackground,
+    onSurface = AppColor.OnSurface,
+    error = AppColor.Error,
+    onError = AppColor.OnPrimary
 )
 
 /**
