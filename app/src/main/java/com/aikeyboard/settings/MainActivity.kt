@@ -11,6 +11,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts
 import android.os.Bundle
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -188,8 +189,17 @@ fun SetupStep(
     enabled: Boolean = true,
     onClick: () -> Unit
 ) {
+    val cardModifier = Modifier
+        .fillMaxWidth()
+        .then(
+            if (enabled && !isComplete) {
+                Modifier.clickable { onClick() }
+            } else {
+                Modifier
+            }
+        )
+    
     Card(
-        onClick = if (enabled && !isComplete) onClick else {},
         colors = CardDefaults.cardColors(
             containerColor = when {
                 isComplete -> Color(0xFF1B5E20)
@@ -198,7 +208,7 @@ fun SetupStep(
             }
         ),
         shape = RoundedCornerShape(12.dp),
-        modifier = Modifier.fillMaxWidth()
+        modifier = cardModifier
     ) {
         Row(
             modifier = Modifier.padding(16.dp).fillMaxWidth(),
