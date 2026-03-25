@@ -1,5 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
-<input-method xmlns:android="http://schemas.android.com/apk/res/android">
-    <subtype android:imeSubtypeMode="keyboard" android:imeSubtypeLocale="en_US" android:label="@string/app_name" />
-    <subtype android:imeSubtypeMode="keyboard" android:imeSubtypeLocale="bn_BD" android:label="@string/app_name" />
+<input-method xmlns:android="http://schemas.android.com/apk/res/android"
+    android:settingsActivity="com.aikeyboard.settings.MainActivity"
+    android:isDefault="false">
+    
+    <subtype
+        android:imeSubtypeMode="keyboard"
+        android:imeSubtypeLocale="en_US"
+        android:label="@string/keyboard_name_en"
+        android:imeSubtypeExtraValue="EmojiCapable" />
+    
+    <subtype
+        android:imeSubtypeMode="keyboard"
+        android:imeSubtypeLocale="bn_BD"
+        android:label="@string/keyboard_name_bn"
+        android:imeSubtypeExtraValue="EmojiCapable" />
 </input-method>

@@ -2,4 +2,6 @@
 <resources>
     <string name="app_name">AI Voice Keyboard</string>
     <string name="keyboard_name">AI Voice Keyboard</string>
+    <string name="keyboard_name_en">AI Voice Keyboard (English)</string>
+    <string name="keyboard_name_bn">AI Voice Keyboard (বাংলা)</string>
 </resources>

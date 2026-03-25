@@ -418,16 +418,27 @@ fun openInputMethodSettings(context: Context) {
 
 fun showKeyboardPicker(context: Context) {
     try {
-        if (Build.VERSION.SDK_INT >= 30) {
-            val intent = Intent("android.settings.SHOW_INPUT_METHOD_PICKER")
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            context.startActivity(intent)
+        val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+        
+        // Try to show the input method picker directly
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            // Android 11+ (API 30+)
+            try {
+                val intent = Intent("android.settings.SHOW_INPUT_METHOD_PICKER")
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                context.startActivity(intent)
+            } catch (e: Exception) {
+                Log.e(TAG, "SHOW_INPUT_METHOD_PICKER failed, trying alternative", e)
+                // Alternative: show picker through InputMethodManager
+                imm.showInputMethodPicker()
+            }
         } else {
-            val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+            // Android 8-10 (API 26-29)
             imm.showInputMethodPicker()
         }
     } catch (e: Exception) {
         Log.e(TAG, "Error showing keyboard picker", e)
+        // Last resort: open settings
         openInputMethodSettings(context)
     }
 }
