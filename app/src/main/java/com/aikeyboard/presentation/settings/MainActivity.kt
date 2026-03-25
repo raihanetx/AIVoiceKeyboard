@@ -1,5 +1,6 @@
-package com.aikeyboard.settings
+package com.aikeyboard.presentation.settings
 
+import android.Manifest
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -20,7 +21,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
@@ -30,16 +30,17 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
-import com.aikeyboard.ui.theme.AIVoiceKeyboardTheme
+import com.aikeyboard.core.constants.AppConstants
+import com.aikeyboard.presentation.theme.AIVoiceKeyboardTheme
+import com.aikeyboard.presentation.theme.Color
 
 private const val TAG = "MainActivity"
 
-private val AppBackground = Color(0xFF1A1A2E)
-private val CardBackground = Color(0xFF2D2D2D)
-private val PrimaryBlue = Color(0xFF4285F4)
-private val SuccessGreen = Color(0xFF1B5E20)
-private val WarningOrange = Color(0xFFFF9800)
-
+/**
+ * Main settings activity for the keyboard app
+ * 
+ * Handles keyboard setup and permission requests.
+ */
 class MainActivity : ComponentActivity() {
 
     private val permissionLauncher = registerForActivityResult(
@@ -60,7 +61,7 @@ class MainActivity : ComponentActivity() {
                 MainScreen(
                     requestMicPermission = {
                         Log.d(TAG, "Requesting RECORD_AUDIO permission")
-                        permissionLauncher.launch(arrayOf(android.Manifest.permission.RECORD_AUDIO))
+                        permissionLauncher.launch(arrayOf(Manifest.permission.RECORD_AUDIO))
                     }
                 )
             }
@@ -78,7 +79,7 @@ fun MainScreen(requestMicPermission: () -> Unit) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
 
-    // State - using mutableStateOf for recomposition
+    // State
     var keyboardEnabled by remember { mutableStateOf(false) }
     var keyboardSelected by remember { mutableStateOf(false) }
     var micGranted by remember { mutableStateOf(false) }
@@ -107,10 +108,10 @@ fun MainScreen(requestMicPermission: () -> Unit) {
         }
     }
 
-    // Also check periodically while in foreground (every 500ms)
+    // Periodic check
     LaunchedEffect(Unit) {
         while (true) {
-            kotlinx.coroutines.delay(500)
+            kotlinx.coroutines.delay(AppConstants.STATE_CHECK_INTERVAL)
             keyboardEnabled = checkKeyboardEnabled(context)
             keyboardSelected = checkKeyboardSelected(context)
             micGranted = checkMicPermission(context)
@@ -128,12 +129,10 @@ fun MainScreen(requestMicPermission: () -> Unit) {
 
     val allDone = keyboardEnabled && keyboardSelected && micGranted
 
-    Log.d(TAG, "Rendering: enabled=$keyboardEnabled, selected=$keyboardSelected, mic=$micGranted, allDone=$allDone")
-
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(AppBackground)
+            .background(Color.Background)
             .padding(20.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
@@ -143,13 +142,16 @@ fun MainScreen(requestMicPermission: () -> Unit) {
         Box(
             modifier = Modifier
                 .size(70.dp)
-                .background(if (allDone) SuccessGreen else PrimaryBlue, RoundedCornerShape(16.dp)),
+                .background(
+                    if (allDone) Color.Success else Color.Primary,
+                    RoundedCornerShape(16.dp)
+                ),
             contentAlignment = Alignment.Center
         ) {
             Icon(
                 if (allDone) Icons.Default.Check else Icons.Default.Keyboard,
                 contentDescription = null,
-                tint = Color.White,
+                tint = Color.OnPrimary,
                 modifier = Modifier.size(36.dp)
             )
         }
@@ -160,17 +162,14 @@ fun MainScreen(requestMicPermission: () -> Unit) {
             text = if (allDone) "Ready to Use!" else "AI Voice Keyboard",
             fontSize = 22.sp,
             fontWeight = FontWeight.Bold,
-            color = Color.White
+            color = Color.OnBackground
         )
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // ALL DONE SCREEN
         if (allDone) {
             SetupCompleteCard()
-        }
-        // SETUP SCREEN
-        else {
+        } else {
             SetupCards(
                 keyboardEnabled = keyboardEnabled,
                 keyboardSelected = keyboardSelected,
@@ -190,7 +189,7 @@ fun SetupCompleteCard() {
     val context = LocalContext.current
 
     Card(
-        colors = CardDefaults.cardColors(containerColor = SuccessGreen),
+        colors = CardDefaults.cardColors(containerColor = Color.Success),
         shape = RoundedCornerShape(16.dp),
         modifier = Modifier.fillMaxWidth()
     ) {
@@ -201,20 +200,20 @@ fun SetupCompleteCard() {
             Icon(
                 Icons.Default.CheckCircle,
                 contentDescription = null,
-                tint = Color.White,
+                tint = Color.OnPrimary,
                 modifier = Modifier.size(48.dp)
             )
             Spacer(modifier = Modifier.height(12.dp))
             Text(
                 text = "Setup Complete!",
-                color = Color.White,
+                color = Color.OnPrimary,
                 fontWeight = FontWeight.Bold,
                 fontSize = 20.sp
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
                 text = "Open any app with a text field\ntap on it to use the keyboard",
-                color = Color.White.copy(alpha = 0.9f),
+                color = Color.OnPrimary.copy(alpha = 0.9f),
                 fontSize = 14.sp,
                 textAlign = TextAlign.Center
             )
@@ -225,10 +224,16 @@ fun SetupCompleteCard() {
 
     OutlinedButton(
         onClick = {
-            Toast.makeText(context, "Open WhatsApp, Messages, or any app with text field!", Toast.LENGTH_LONG).show()
+            Toast.makeText(
+                context,
+                "Open WhatsApp, Messages, or any app with text field!",
+                Toast.LENGTH_LONG
+            ).show()
         },
-        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
-        modifier = Modifier.fillMaxWidth().height(50.dp),
+        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.OnBackground),
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(50.dp),
         shape = RoundedCornerShape(10.dp)
     ) {
         Icon(Icons.Default.Info, contentDescription = null)
@@ -246,7 +251,6 @@ fun SetupCards(
     onSelectClick: () -> Unit,
     onMicClick: () -> Unit
 ) {
-    // Step 1: Enable
     StatusCard(
         title = "Step 1: Enable Keyboard",
         isDone = keyboardEnabled,
@@ -255,7 +259,6 @@ fun SetupCards(
 
     Spacer(modifier = Modifier.height(10.dp))
 
-    // Step 2: Select
     StatusCard(
         title = "Step 2: Select Keyboard",
         subtitle = if (keyboardEnabled && !keyboardSelected) "Tap notification bar → Change keyboard" else null,
@@ -266,7 +269,6 @@ fun SetupCards(
 
     Spacer(modifier = Modifier.height(10.dp))
 
-    // Step 3: Microphone
     StatusCard(
         title = "Step 3: Microphone Permission",
         isDone = micGranted,
@@ -276,77 +278,88 @@ fun SetupCards(
 
     Spacer(modifier = Modifier.height(20.dp))
 
-    // Progress
     val done = listOf(keyboardEnabled, keyboardSelected, micGranted).count { it }
     LinearProgressIndicator(
         progress = { done / 3f },
-        color = PrimaryBlue,
-        trackColor = CardBackground,
-        modifier = Modifier.fillMaxWidth().height(8.dp)
+        color = Color.Primary,
+        trackColor = Color.CardBackground,
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(8.dp)
     )
     Spacer(modifier = Modifier.height(8.dp))
     Text(
         text = "$done of 3 complete",
-        color = Color.Gray,
+        color = Color.TextSecondary,
         fontSize = 14.sp
     )
 
     Spacer(modifier = Modifier.height(20.dp))
 
     // Main action button
-    if (!keyboardEnabled) {
-        Button(
-            onClick = onEnableClick,
-            colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue),
-            modifier = Modifier.fillMaxWidth().height(50.dp),
-            shape = RoundedCornerShape(10.dp)
-        ) {
-            Icon(Icons.Default.Settings, contentDescription = null)
-            Spacer(modifier = Modifier.width(8.dp))
-            Text("Open Settings", fontSize = 15.sp)
-        }
-    } else if (!keyboardSelected) {
-        Button(
-            onClick = onSelectClick,
-            colors = ButtonDefaults.buttonColors(containerColor = SuccessGreen),
-            modifier = Modifier.fillMaxWidth().height(50.dp),
-            shape = RoundedCornerShape(10.dp)
-        ) {
-            Icon(Icons.Default.SwapHoriz, contentDescription = null)
-            Spacer(modifier = Modifier.width(8.dp))
-            Text("Switch Keyboard", fontSize = 15.sp, fontWeight = FontWeight.Bold)
-        }
-
-        Spacer(modifier = Modifier.height(10.dp))
-
-        Card(
-            colors = CardDefaults.cardColors(containerColor = WarningOrange.copy(alpha = 0.2f)),
-            shape = RoundedCornerShape(8.dp),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Row(
-                modifier = Modifier.padding(12.dp),
-                verticalAlignment = Alignment.CenterVertically
+    when {
+        !keyboardEnabled -> {
+            Button(
+                onClick = onEnableClick,
+                colors = ButtonDefaults.buttonColors(containerColor = Color.Primary),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(50.dp),
+                shape = RoundedCornerShape(10.dp)
             ) {
-                Icon(Icons.Default.Info, contentDescription = null, tint = WarningOrange)
+                Icon(Icons.Default.Settings, contentDescription = null)
                 Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = "Swipe down notification bar and tap 'Change keyboard'",
-                    color = Color.White,
-                    fontSize = 13.sp
-                )
+                Text("Open Settings", fontSize = 15.sp)
             }
         }
-    } else if (!micGranted) {
-        Button(
-            onClick = onMicClick,
-            colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue),
-            modifier = Modifier.fillMaxWidth().height(50.dp),
-            shape = RoundedCornerShape(10.dp)
-        ) {
-            Icon(Icons.Default.Mic, contentDescription = null)
-            Spacer(modifier = Modifier.width(8.dp))
-            Text("Grant Microphone Permission", fontSize = 15.sp)
+        !keyboardSelected -> {
+            Button(
+                onClick = onSelectClick,
+                colors = ButtonDefaults.buttonColors(containerColor = Color.Success),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(50.dp),
+                shape = RoundedCornerShape(10.dp)
+            ) {
+                Icon(Icons.Default.SwapHoriz, contentDescription = null)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Switch Keyboard", fontSize = 15.sp, fontWeight = FontWeight.Bold)
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            Card(
+                colors = CardDefaults.cardColors(containerColor = Color.Warning.copy(alpha = 0.2f)),
+                shape = RoundedCornerShape(8.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier.padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Default.Info, contentDescription = null, tint = Color.Warning)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Swipe down notification bar and tap 'Change keyboard'",
+                        color = Color.OnBackground,
+                        fontSize = 13.sp
+                    )
+                }
+            }
+        }
+        !micGranted -> {
+            Button(
+                onClick = onMicClick,
+                colors = ButtonDefaults.buttonColors(containerColor = Color.Primary),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(50.dp),
+                shape = RoundedCornerShape(10.dp)
+            ) {
+                Icon(Icons.Default.Mic, contentDescription = null)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Grant Microphone Permission", fontSize = 15.sp)
+            }
         }
     }
 }
@@ -362,8 +375,8 @@ fun StatusCard(
     Card(
         colors = CardDefaults.cardColors(
             containerColor = when {
-                isDone -> SuccessGreen
-                enabled -> CardBackground
+                isDone -> Color.Success
+                enabled -> Color.CardBackground
                 else -> Color(0xFF1A1A1A)
             }
         ),
@@ -379,17 +392,24 @@ fun StatusCard(
                 modifier = Modifier
                     .size(32.dp)
                     .background(
-                        if (isDone) Color.Transparent else if (enabled) PrimaryBlue else Color.Gray,
+                        if (isDone) Color.Transparent
+                        else if (enabled) Color.Primary
+                        else Color.TextSecondary,
                         RoundedCornerShape(16.dp)
                     ),
                 contentAlignment = Alignment.Center
             ) {
                 if (isDone) {
-                    Icon(Icons.Default.Check, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
+                    Icon(
+                        Icons.Default.Check,
+                        contentDescription = null,
+                        tint = Color.OnPrimary,
+                        modifier = Modifier.size(20.dp)
+                    )
                 } else {
                     Text(
                         text = if (enabled) "?" else "✕",
-                        color = Color.White,
+                        color = Color.OnPrimary,
                         fontWeight = FontWeight.Bold,
                         fontSize = 14.sp
                     )
@@ -401,21 +421,25 @@ fun StatusCard(
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = title,
-                    color = if (enabled) Color.White else Color.Gray,
+                    color = if (enabled) Color.OnBackground else Color.TextSecondary,
                     fontWeight = FontWeight.Medium,
                     fontSize = 14.sp
                 )
                 if (subtitle != null) {
                     Text(
                         text = subtitle,
-                        color = WarningOrange,
+                        color = Color.Warning,
                         fontSize = 11.sp
                     )
                 }
             }
 
             if (!isDone && enabled) {
-                Icon(Icons.Default.ArrowForward, contentDescription = null, tint = Color.White.copy(alpha = 0.5f))
+                Icon(
+                    Icons.Default.ArrowForward,
+                    contentDescription = null,
+                    tint = Color.OnBackground.copy(alpha = 0.5f)
+                )
             }
         }
     }
@@ -455,7 +479,7 @@ fun checkKeyboardSelected(context: Context): Boolean {
         ) ?: ""
 
         val packageName = context.packageName
-        val serviceClassName = "com.aikeyboard.keyboard.AiKeyboardService"
+        val serviceClassName = "com.aikeyboard.presentation.keyboard.AiKeyboardService"
         val expectedId = "$packageName/$serviceClassName"
 
         Log.d(TAG, "Checking keyboard selected...")
@@ -463,10 +487,9 @@ fun checkKeyboardSelected(context: Context): Boolean {
         Log.d(TAG, "  Current default IME: $defaultIme")
         Log.d(TAG, "  Expected ID: $expectedId")
 
-        // Check multiple ways - some devices format differently
         val isSelected = defaultIme.contains(packageName) ||
-                         defaultIme == expectedId ||
-                         defaultIme.endsWith("/$serviceClassName")
+                defaultIme == expectedId ||
+                defaultIme.endsWith("/$serviceClassName")
 
         Log.d(TAG, "  Result: $isSelected")
 
@@ -480,7 +503,7 @@ fun checkKeyboardSelected(context: Context): Boolean {
 fun checkMicPermission(context: Context): Boolean {
     val result = ContextCompat.checkSelfPermission(
         context,
-        android.Manifest.permission.RECORD_AUDIO
+        Manifest.permission.RECORD_AUDIO
     ) == PackageManager.PERMISSION_GRANTED
 
     Log.d(TAG, "checkMicPermission: $result")
@@ -504,13 +527,11 @@ fun switchKeyboard(context: Context) {
         Log.d(TAG, "Showing input method picker...")
         val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
 
-        // Try multiple approaches
         try {
             imm.showInputMethodPicker()
             Toast.makeText(context, "Select 'AI Voice Keyboard' from the list", Toast.LENGTH_LONG).show()
         } catch (e: Exception) {
             Log.w(TAG, "showInputMethodPicker failed, trying alternative", e)
-            // Fallback: open settings
             openKeyboardSettings(context)
         }
     } catch (e: Exception) {
