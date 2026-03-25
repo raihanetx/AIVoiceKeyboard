@@ -11,7 +11,7 @@ object ApiConstants {
     
     // Gemini API Configuration
     const val GEMINI_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta"
-    const val GEMINI_MODEL = "gemini-2.5-flash-preview-native-audio-input"
+    const val GEMINI_MODEL = "gemini-2.5-flash-native-audio-preview-12-2025"
     
     // Z-AI API Configuration  
     const val ZAI_ENDPOINT = "https://api.z.ai/api/paas/v4"
