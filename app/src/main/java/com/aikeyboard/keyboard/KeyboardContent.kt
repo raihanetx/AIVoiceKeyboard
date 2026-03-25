@@ -1,9 +1,11 @@
 package com.aikeyboard.keyboard
 
 import android.Manifest
+import android.content.Context
 import android.content.pm.PackageManager
 import android.media.MediaRecorder
-import android.os.Bundle
+import android.os.Build
+import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -19,16 +21,25 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.app.ActivityCompat
 import com.aikeyboard.translation.ZAiClient
 import com.aikeyboard.voice.GeminiVoiceClient
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import java.io.File
+
+private const val TAG = "KeyboardContent"
+
+// Colors - centralized for maintainability
+private val KeyboardBackground = Color(0xFF1A1A2E)
+private val KeyboardSurface = Color(0xFF16213E)
+private val PrimaryBlue = Color(0xFF4285F4)
+private val PrimaryRed = Color(0xFFEA4335)
+private val SuccessGreen = Color(0xFF1B5E20)
+private val KeyBackground = Color(0xFF2D2D2D)
+private val CardBackground = Color(0xFF37474F)
 
 @Composable
 fun KeyboardContent(
@@ -40,25 +51,44 @@ fun KeyboardContent(
     var currentLanguage by remember { mutableStateOf("en") }
     var isRecording by remember { mutableStateOf(false) }
     var recognizedText by remember { mutableStateOf("") }
-    var isTranslating by remember { mutableStateOf(false) }
+    var recordingError by remember { mutableStateOf<String?>(null) }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     
-    // Voice recording state
-    var mediaRecorder by remember { mutableStateOf<MediaRecorder?>(null) }
-    var audioFile by remember { mutableStateOf<File?>(null) }
+    // Voice recording state - use remember with DisposableEffect for cleanup
+    var mediaRecorderState by remember { mutableStateOf<MediaRecorder?>(null) }
+    var audioFileState by remember { mutableStateOf<File?>(null) }
+    
+    // Cleanup on dispose
+    DisposableEffect(Unit) {
+        onDispose {
+            // Ensure recorder is released if composable is disposed while recording
+            mediaRecorderState?.let { recorder ->
+                try {
+                    recorder.stop()
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error stopping recorder on dispose", e)
+                }
+                try {
+                    recorder.release()
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error releasing recorder on dispose", e)
+                }
+            }
+        }
+    }
     
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .height(280.dp)
-            .background(Color(0xFF1A1A2E))
+            .background(KeyboardBackground)
     ) {
         // Top bar with panel buttons
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(Color(0xFF16213E))
+                .background(KeyboardSurface)
                 .padding(horizontal = 4.dp, vertical = 6.dp),
             horizontalArrangement = Arrangement.SpaceEvenly
         ) {
@@ -101,28 +131,54 @@ fun KeyboardContent(
                         isRecording = isRecording,
                         currentLanguage = currentLanguage,
                         recognizedText = recognizedText,
+                        recordingError = recordingError,
                         onLanguageChange = { currentLanguage = it },
                         onToggleRecording = {
+                            // Check permission first
+                            if (ActivityCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) 
+                                != PackageManager.PERMISSION_GRANTED) {
+                                recordingError = "Microphone permission required"
+                                return@VoicePanel
+                            }
+                            
                             if (isRecording) {
                                 // Stop recording
-                                stopRecording(mediaRecorder, audioFile) { file ->
-                                    if (file != null) {
+                                val recorder = mediaRecorderState
+                                val audioFile = audioFileState
+                                
+                                stopRecording(recorder, audioFile) { file ->
+                                    if (file != null && file.exists() && file.length() > 0) {
                                         scope.launch {
                                             val result = GeminiVoiceClient.instance.transcribeAudio(file, currentLanguage)
                                             result.onSuccess { text ->
                                                 recognizedText = text
+                                                recordingError = null
                                             }
                                             result.onFailure { e ->
-                                                recognizedText = "Error: ${e.message}"
+                                                recordingError = "Error: ${e.message}"
+                                                Log.e(TAG, "Transcription failed", e)
                                             }
+                                            // Clean up audio file
+                                            try { file.delete() } catch (e: Exception) { Log.e(TAG, "Failed to delete audio file", e) }
                                         }
+                                    } else {
+                                        recordingError = "Recording failed - no audio captured"
                                     }
                                 }
+                                mediaRecorderState = null
+                                audioFileState = null
                             } else {
                                 // Start recording
+                                recordingError = null
+                                recognizedText = ""
                                 val (recorder, file) = startRecording(context)
-                                mediaRecorder = recorder
-                                audioFile = file
+                                if (recorder != null && file != null) {
+                                    mediaRecorderState = recorder
+                                    audioFileState = file
+                                } else {
+                                    recordingError = "Failed to start recording"
+                                    return@VoicePanel
+                                }
                             }
                             isRecording = !isRecording
                         },
@@ -152,20 +208,20 @@ fun KeyboardContent(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(Color(0xFF16213E))
+                .background(KeyboardSurface)
                 .padding(vertical = 4.dp),
             horizontalArrangement = Arrangement.SpaceEvenly
         ) {
             TextButton(
                 onClick = { currentLanguage = "en" },
                 colors = ButtonDefaults.textButtonColors(
-                    contentColor = if (currentLanguage == "en") Color(0xFF4285F4) else Color.Gray
+                    contentColor = if (currentLanguage == "en") PrimaryBlue else Color.Gray
                 )
             ) { Text("EN", fontSize = 14.sp, fontWeight = FontWeight.Bold) }
             TextButton(
                 onClick = { currentLanguage = "bn" },
                 colors = ButtonDefaults.textButtonColors(
-                    contentColor = if (currentLanguage == "bn") Color(0xFF4285F4) else Color.Gray
+                    contentColor = if (currentLanguage == "bn") PrimaryBlue else Color.Gray
                 )
             ) { Text("বাং", fontSize = 14.sp, fontWeight = FontWeight.Bold) }
         }
@@ -177,11 +233,11 @@ fun PanelButton(text: String, selected: Boolean, onClick: () -> Unit) {
     TextButton(
         onClick = onClick,
         colors = ButtonDefaults.textButtonColors(
-            contentColor = if (selected) Color(0xFF4285F4) else Color.White
+            contentColor = if (selected) PrimaryBlue else Color.White
         ),
         modifier = Modifier
             .background(
-                if (selected) Color(0xFF4285F4).copy(alpha = 0.2f) else Color.Transparent,
+                if (selected) PrimaryBlue.copy(alpha = 0.2f) else Color.Transparent,
                 RoundedCornerShape(8.dp)
             )
     ) {
@@ -240,7 +296,7 @@ fun RowScope.KeyButton(key: String, onClick: () -> Unit) {
             .height(38.dp)
             .weight(1f),
         shape = RoundedCornerShape(4.dp),
-        color = Color(0xFF2D2D2D)
+        color = KeyBackground
     ) {
         Box(contentAlignment = Alignment.Center) {
             Text(key, color = Color.White, fontSize = 16.sp)
@@ -253,6 +309,7 @@ fun VoicePanel(
     isRecording: Boolean,
     currentLanguage: String,
     recognizedText: String,
+    recordingError: String?,
     onLanguageChange: (String) -> Unit,
     onToggleRecording: () -> Unit,
     onInsertText: (String) -> Unit
@@ -279,7 +336,7 @@ fun VoicePanel(
         
         FloatingActionButton(
             onClick = onToggleRecording,
-            containerColor = if (isRecording) Color(0xFFEA4335) else Color(0xFF4285F4),
+            containerColor = if (isRecording) PrimaryRed else PrimaryBlue,
             modifier = Modifier.size(56.dp)
         ) {
             Icon(
@@ -297,17 +354,28 @@ fun VoicePanel(
             fontSize = 12.sp
         )
         
+        // Show error if any
+        if (!recordingError.isNullOrBlank()) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = recordingError,
+                color = PrimaryRed,
+                fontSize = 11.sp,
+                textAlign = TextAlign.Center
+            )
+        }
+        
         if (recognizedText.isNotBlank()) {
             Spacer(modifier = Modifier.height(8.dp))
             Card(
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF2D2D2D)),
+                colors = CardDefaults.cardColors(containerColor = KeyBackground),
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp)
             ) {
                 Column(modifier = Modifier.padding(8.dp)) {
                     Text(recognizedText, color = Color.White, fontSize = 12.sp)
                     Spacer(modifier = Modifier.height(4.dp))
                     TextButton(onClick = { onInsertText(recognizedText) }) {
-                        Text("Insert Text", color = Color(0xFF4285F4), fontSize = 12.sp)
+                        Text("Insert Text", color = PrimaryBlue, fontSize = 12.sp)
                     }
                 }
             }
@@ -323,6 +391,7 @@ fun TranslatePanel(
 ) {
     var inputText by remember { mutableStateOf("") }
     var translatedText by remember { mutableStateOf("") }
+    var translateError by remember { mutableStateOf<String?>(null) }
     var isTranslating by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     
@@ -357,10 +426,13 @@ fun TranslatePanel(
         
         OutlinedTextField(
             value = inputText,
-            onValueChange = { inputText = it },
+            onValueChange = { 
+                inputText = it
+                translateError = null
+            },
             placeholder = { Text("Enter text to translate", color = Color.Gray, fontSize = 12.sp) },
             colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = Color(0xFF4285F4),
+                focusedBorderColor = PrimaryBlue,
                 unfocusedBorderColor = Color.Gray,
                 focusedTextColor = Color.White,
                 unfocusedTextColor = Color.White
@@ -374,21 +446,25 @@ fun TranslatePanel(
         
         Button(
             onClick = {
-                if (inputText.isNotBlank()) {
+                if (inputText.isNotBlank() && inputText.length <= 5000) {
                     isTranslating = true
+                    translateError = null
                     scope.launch {
                         val result = ZAiClient.translate(inputText, currentLanguage, targetLang)
                         result.onSuccess { text ->
                             translatedText = text
                         }
                         result.onFailure { e ->
-                            translatedText = "Error: ${e.message}"
+                            translateError = e.message ?: "Translation failed"
+                            Log.e(TAG, "Translation failed", e)
                         }
                         isTranslating = false
                     }
+                } else if (inputText.length > 5000) {
+                    translateError = "Text too long (max 5000 chars)"
                 }
             },
-            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4285F4)),
+            colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue),
             modifier = Modifier.fillMaxWidth().height(36.dp),
             enabled = !isTranslating && inputText.isNotBlank()
         ) {
@@ -403,10 +479,22 @@ fun TranslatePanel(
             }
         }
         
+        // Show error if any
+        if (!translateError.isNullOrBlank()) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = translateError,
+                color = PrimaryRed,
+                fontSize = 11.sp,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+        
         if (translatedText.isNotBlank()) {
             Spacer(modifier = Modifier.height(8.dp))
             Card(
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF2D2D2D)),
+                colors = CardDefaults.cardColors(containerColor = KeyBackground),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(modifier = Modifier.padding(8.dp)) {
@@ -421,7 +509,7 @@ fun TranslatePanel(
                         onClick = { onInsertText(translatedText) },
                         modifier = Modifier.align(Alignment.End)
                     ) {
-                        Text("Insert", color = Color(0xFF4285F4), fontSize = 12.sp)
+                        Text("Insert", color = PrimaryBlue, fontSize = 12.sp)
                     }
                 }
             }
@@ -462,13 +550,22 @@ fun EmojiPanel(onEmojiClick: (String) -> Unit) {
     }
 }
 
-// Voice Recording Helper Functions
-fun startRecording(context: android.content.Context): Pair<MediaRecorder?, File?> {
+// ==================== Voice Recording Helper Functions ====================
+
+/**
+ * Start recording audio. Returns (MediaRecorder, File) or (null, null) on failure.
+ */
+fun startRecording(context: Context): Pair<MediaRecorder?, File?> {
     return try {
-        val fileName = "${context.cacheDir.absolutePath}/voice_${System.currentTimeMillis()}.3gp"
+        val cacheDir = context.cacheDir
+        if (!cacheDir.exists()) {
+            cacheDir.mkdirs()
+        }
+        
+        val fileName = "${cacheDir.absolutePath}/voice_${System.currentTimeMillis()}.3gp"
         val file = File(fileName)
         
-        val recorder = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+        val recorder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             MediaRecorder(context)
         } else {
             @Suppress("DEPRECATION")
@@ -482,24 +579,40 @@ fun startRecording(context: android.content.Context): Pair<MediaRecorder?, File?
         recorder.prepare()
         recorder.start()
         
+        Log.d(TAG, "Recording started: $fileName")
         Pair(recorder, file)
     } catch (e: Exception) {
+        Log.e(TAG, "Failed to start recording", e)
         Pair(null, null)
     }
 }
 
+/**
+ * Stop recording and release resources properly.
+ * Always releases the MediaRecorder, even if stop() fails.
+ */
 fun stopRecording(
     recorder: MediaRecorder?,
     audioFile: File?,
     onComplete: (File?) -> Unit
 ) {
+    Log.d(TAG, "Stopping recording")
+    
+    // Always try to release the recorder
     try {
-        recorder?.apply {
-            stop()
-            release()
-        }
-        onComplete(audioFile)
+        recorder?.stop()
+        Log.d(TAG, "Recording stopped successfully")
     } catch (e: Exception) {
-        onComplete(null)
+        Log.e(TAG, "Error stopping recorder", e)
+    } finally {
+        try {
+            recorder?.release()
+            Log.d(TAG, "Recorder released")
+        } catch (e: Exception) {
+            Log.e(TAG, "Error releasing recorder", e)
+        }
     }
+    
+    // Return the audio file (or null if there was an error)
+    onComplete(audioFile)
 }

@@ -13,7 +13,7 @@ class AiKeyboardService : InputMethodService() {
         private const val TAG = "AiKeyboardService"
     }
     
-    private var keyboardView: View? = null
+    private var keyboardView: ComposeView? = null
     
     override fun onCreate() {
         super.onCreate()
@@ -23,24 +23,36 @@ class AiKeyboardService : InputMethodService() {
     override fun onCreateInputView(): View {
         Log.d(TAG, "Creating input view")
         return try {
-            keyboardView = ComposeView(this).apply {
-                setContent {
-                    KeyboardTheme {
-                        KeyboardContent(
-                            onTextCommit = { text ->
+            val composeView = ComposeView(this)
+            composeView.setContent {
+                KeyboardTheme {
+                    KeyboardContent(
+                        onTextCommit = { text ->
+                            try {
                                 currentInputConnection?.commitText(text, 1)
-                            },
-                            onDelete = {
-                                currentInputConnection?.deleteSurroundingText(1, 0)
-                            },
-                            onEnter = {
-                                currentInputConnection?.performEditorAction(EditorInfo.IME_ACTION_DONE)
+                            } catch (e: Exception) {
+                                Log.e(TAG, "Error committing text", e)
                             }
-                        )
-                    }
+                        },
+                        onDelete = {
+                            try {
+                                currentInputConnection?.deleteSurroundingText(1, 0)
+                            } catch (e: Exception) {
+                                Log.e(TAG, "Error deleting text", e)
+                            }
+                        },
+                        onEnter = {
+                            try {
+                                currentInputConnection?.performEditorAction(EditorInfo.IME_ACTION_DONE)
+                            } catch (e: Exception) {
+                                Log.e(TAG, "Error performing enter action", e)
+                            }
+                        }
+                    )
                 }
             }
-            keyboardView!!
+            keyboardView = composeView
+            composeView
         } catch (e: Exception) {
             Log.e(TAG, "Error creating keyboard view", e)
             // Return empty view as fallback
@@ -63,7 +75,20 @@ class AiKeyboardService : InputMethodService() {
         Log.d(TAG, "onFinishInput")
     }
     
+    override fun onFinishInputView(finishingInput: Boolean) {
+        super.onFinishInputView(finishingInput)
+        Log.d(TAG, "onFinishInputView: finishing=$finishingInput")
+    }
+    
     override fun onDestroy() {
+        Log.d(TAG, "onDestroy called")
+        // Properly dispose ComposeView to prevent memory leaks
+        try {
+            keyboardView?.disposeComposition()
+        } catch (e: Exception) {
+            Log.e(TAG, "Error disposing composition", e)
+        }
+        keyboardView = null
         super.onDestroy()
         Log.d(TAG, "Keyboard service destroyed")
     }

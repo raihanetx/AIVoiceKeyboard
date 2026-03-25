@@ -6,12 +6,12 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
+import android.util.Log
 import android.view.inputmethod.InputMethodManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -23,31 +23,34 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import com.aikeyboard.ui.theme.AIVoiceKeyboardTheme
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+
+private const val TAG = "MainActivity"
+
+// Colors - centralized
+private val AppBackground = Color(0xFF1A1A2E)
+private val CardBackground = Color(0xFF2D2D2D)
+private val CardDisabled = Color(0xFF1A1A1A)
+private val PrimaryBlue = Color(0xFF4285F4)
+private val SuccessGreen = Color(0xFF1B5E20)
+private val ProgressBackground = Color(0xFF37474F)
 
 class MainActivity : ComponentActivity() {
     
     private val requestPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
-        // Handle permission results
-        permissions.entries.forEach { (permission, granted) ->
-            // Permission result handled in UI through check
-        }
+        Log.d(TAG, "Permission result: $permissions")
     }
     
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        
-        // Auto-request microphone permission on first launch
-        if (!checkAudioPermission(this)) {
-            requestPermissionLauncher.launch(arrayOf(android.Manifest.permission.RECORD_AUDIO))
-        }
+        Log.d(TAG, "MainActivity created")
         
         setContent {
             AIVoiceKeyboardTheme {
@@ -69,15 +72,15 @@ fun SetupScreen(requestAudioPermission: () -> Unit) {
     var keyboardDefault by remember { mutableStateOf(false) }
     var audioPermissionGranted by remember { mutableStateOf(false) }
     
-    // Check status periodically
+    // Check status periodically with isActive check
     LaunchedEffect(Unit) {
         // Initial check
         keyboardEnabled = isKeyboardEnabled(context)
         keyboardDefault = isKeyboardDefault(context)
         audioPermissionGranted = checkAudioPermission(context)
         
-        // Continuous monitoring
-        while (true) {
+        // Continuous monitoring - with isActive check for proper cancellation
+        while (isActive) {
             delay(500)
             keyboardEnabled = isKeyboardEnabled(context)
             keyboardDefault = isKeyboardDefault(context)
@@ -85,10 +88,18 @@ fun SetupScreen(requestAudioPermission: () -> Unit) {
         }
     }
     
+    // Auto-request permission on first load if not granted
+    LaunchedEffect(Unit) {
+        if (!checkAudioPermission(context)) {
+            delay(500) // Small delay to let UI settle
+            requestAudioPermission()
+        }
+    }
+    
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFF1A1A2E))
+            .background(AppBackground)
             .padding(20.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
@@ -98,7 +109,7 @@ fun SetupScreen(requestAudioPermission: () -> Unit) {
         Box(
             modifier = Modifier
                 .size(80.dp)
-                .background(Color(0xFF4285F4), RoundedCornerShape(20.dp)),
+                .background(PrimaryBlue, RoundedCornerShape(20.dp)),
             contentAlignment = Alignment.Center
         ) {
             Icon(
@@ -155,7 +166,7 @@ fun SetupScreen(requestAudioPermission: () -> Unit) {
         SetupStep(
             number = 3,
             title = "Microphone Permission",
-            description = if (audioPermissionGranted) "Microphone access granted ✓" else "Required for voice typing",
+            description = if (audioPermissionGranted) "Microphone access granted ✓" else "Tap to grant microphone permission",
             isComplete = audioPermissionGranted,
             enabled = keyboardEnabled,
             onClick = { 
@@ -170,7 +181,7 @@ fun SetupScreen(requestAudioPermission: () -> Unit) {
         // Status Card
         if (keyboardEnabled && keyboardDefault && audioPermissionGranted) {
             Card(
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF1B5E20)),
+                colors = CardDefaults.cardColors(containerColor = SuccessGreen),
                 shape = RoundedCornerShape(16.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
@@ -205,7 +216,7 @@ fun SetupScreen(requestAudioPermission: () -> Unit) {
             // Progress indicator
             val completedSteps = listOf(keyboardEnabled, keyboardDefault, audioPermissionGranted).count { it }
             Card(
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF37474F)),
+                colors = CardDefaults.cardColors(containerColor = ProgressBackground),
                 shape = RoundedCornerShape(16.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
@@ -222,9 +233,12 @@ fun SetupScreen(requestAudioPermission: () -> Unit) {
                     Spacer(modifier = Modifier.height(8.dp))
                     LinearProgressIndicator(
                         progress = { completedSteps / 3f },
-                        color = Color(0xFF4285F4),
-                        trackColor = Color(0xFF2D2D2D),
-                        modifier = Modifier.fillMaxWidth().height(8.dp).padding(horizontal = 16.dp)
+                        color = PrimaryBlue,
+                        trackColor = CardBackground,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(8.dp)
+                            .padding(horizontal = 16.dp)
                     )
                 }
             }
@@ -235,7 +249,7 @@ fun SetupScreen(requestAudioPermission: () -> Unit) {
         // Quick Settings Button
         Button(
             onClick = { openInputMethodSettings(context) },
-            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4285F4)),
+            colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue),
             modifier = Modifier.fillMaxWidth().height(50.dp),
             shape = RoundedCornerShape(12.dp)
         ) {
@@ -250,7 +264,7 @@ fun SetupScreen(requestAudioPermission: () -> Unit) {
         if (keyboardEnabled && !keyboardDefault) {
             OutlinedButton(
                 onClick = { showKeyboardPicker(context) },
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF4285F4)),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = PrimaryBlue),
                 modifier = Modifier.fillMaxWidth().height(50.dp),
                 shape = RoundedCornerShape(12.dp)
             ) {
@@ -276,22 +290,29 @@ fun SetupStep(
         .fillMaxWidth()
         .then(
             if (enabled && !isComplete) {
-                Modifier.clickable { onClick() }
+                Modifier.background(
+                    if (isComplete) SuccessGreen else CardBackground,
+                    RoundedCornerShape(12.dp)
+                )
             } else {
-                Modifier
+                Modifier.background(
+                    if (isComplete) SuccessGreen else if (enabled) CardBackground else CardDisabled,
+                    RoundedCornerShape(12.dp)
+                )
             }
         )
     
     Card(
         colors = CardDefaults.cardColors(
             containerColor = when {
-                isComplete -> Color(0xFF1B5E20)
-                enabled -> Color(0xFF2D2D2D)
-                else -> Color(0xFF1A1A1A)
+                isComplete -> SuccessGreen
+                enabled -> CardBackground
+                else -> CardDisabled
             }
         ),
         shape = RoundedCornerShape(12.dp),
-        modifier = cardModifier
+        modifier = cardModifier,
+        onClick = { if (enabled && !isComplete) onClick() }
     ) {
         Row(
             modifier = Modifier
@@ -303,7 +324,7 @@ fun SetupStep(
                 modifier = Modifier
                     .size(44.dp)
                     .background(
-                        if (isComplete) Color.Transparent else Color(0xFF4285F4),
+                        if (isComplete) Color.Transparent else PrimaryBlue,
                         RoundedCornerShape(22.dp)
                     ),
                 contentAlignment = Alignment.Center
@@ -353,16 +374,27 @@ fun SetupStep(
     }
 }
 
-// Helper Functions
+// ==================== Helper Functions ====================
+
 fun isKeyboardEnabled(context: Context): Boolean {
-    val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
-    val enabledInputMethods = imm.enabledInputMethodList
-    return enabledInputMethods.any { it.packageName == context.packageName }
+    return try {
+        val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+        val enabledInputMethods = imm.enabledInputMethodList
+        enabledInputMethods.any { it.packageName == context.packageName }
+    } catch (e: Exception) {
+        Log.e(TAG, "Error checking if keyboard is enabled", e)
+        false
+    }
 }
 
 fun isKeyboardDefault(context: Context): Boolean {
-    val defaultIme = Settings.Secure.getString(context.contentResolver, Settings.Secure.DEFAULT_INPUT_METHOD)
-    return defaultIme.contains(context.packageName)
+    return try {
+        val defaultIme = Settings.Secure.getString(context.contentResolver, Settings.Secure.DEFAULT_INPUT_METHOD)
+        defaultIme.contains(context.packageName)
+    } catch (e: Exception) {
+        Log.e(TAG, "Error checking if keyboard is default", e)
+        false
+    }
 }
 
 fun checkAudioPermission(context: Context): Boolean {
@@ -375,7 +407,12 @@ fun openInputMethodSettings(context: Context) {
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         context.startActivity(intent)
     } catch (e: Exception) {
-        context.startActivity(Intent(Settings.ACTION_SETTINGS).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) })
+        Log.e(TAG, "Error opening input method settings", e)
+        try {
+            context.startActivity(Intent(Settings.ACTION_SETTINGS).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) })
+        } catch (e2: Exception) {
+            Log.e(TAG, "Error opening settings", e2)
+        }
     }
 }
 
@@ -390,6 +427,7 @@ fun showKeyboardPicker(context: Context) {
             imm.showInputMethodPicker()
         }
     } catch (e: Exception) {
+        Log.e(TAG, "Error showing keyboard picker", e)
         openInputMethodSettings(context)
     }
 }
