@@ -4,8 +4,6 @@ import android.content.Context
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
-import android.text.Editable
-import android.text.TextWatcher
 import android.view.Gravity
 import android.view.View
 import android.view.inputmethod.EditorInfo
@@ -16,7 +14,7 @@ import com.aikeyboard.core.extension.dpToPx
 import com.aikeyboard.presentation.keyboard.ApiKeyStatus
 
 /**
- * Engine Card View - A single selectable card for an STT engine
+ * Engine Card View - A selectable card for an STT engine
  */
 class EngineCardView(
     context: Context,
@@ -28,31 +26,29 @@ class EngineCardView(
     private val needsApiKey: Boolean
 ) : LinearLayout(context) {
 
-    // UI Components
-    private val container: LinearLayout
-    private val radioCircle: View
-    private val descText: TextView
-    private val statusBadge: TextView
-    private val apiKeyContainer: LinearLayout
-    private val apiKeyInput: EditText
-    private val saveButton: Button
-
-    // State
-    private var isEngineSelected: Boolean = false
-    private var apiKeyStatus: ApiKeyStatus = ApiKeyStatus.NONE
-    private var showingApiKeyInput: Boolean = false
-
     // Callbacks
     var onSelected: (() -> Unit)? = null
     var onApiKeyEntered: ((String) -> Unit)? = null
 
+    // UI Components
+    private val container: LinearLayout
+    private val radioCircle: View
+    private val statusBadge: TextView
+    private val apiKeyContainer: LinearLayout
+    private val apiKeyInput: EditText
+    private val saveBtn: Button
+
+    // State
+    private var isSelectedEngine: Boolean = false
+    private var currentApiKeyStatus: ApiKeyStatus = ApiKeyStatus.NONE
+
     init {
         orientation = VERTICAL
         layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply {
-            setMargins(0, 0, 0, context.dpToPx(8))
+            setMargins(0, 0, 0, context.dpToPx(6))
         }
 
-        // Main container
+        // Main container - clickable card
         container = LinearLayout(context).apply {
             orientation = HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
@@ -64,22 +60,24 @@ class EngineCardView(
             )
             background = createCardBackground(false)
             layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT)
+            isClickable = true
+            isFocusable = true
 
-            // Radio circle
+            // Radio circle indicator
             radioCircle = View(context).apply {
-                layoutParams = LayoutParams(context.dpToPx(24), context.dpToPx(24)).apply {
+                layoutParams = LayoutParams(context.dpToPx(22), context.dpToPx(22)).apply {
                     setMargins(0, 0, context.dpToPx(12), 0)
                 }
                 background = createRadioBackground(false)
             }
             addView(radioCircle)
 
-            // Text container
+            // Text content
             addView(LinearLayout(context).apply {
                 orientation = VERTICAL
                 layoutParams = LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f)
 
-                // Title row
+                // Title row with badge
                 addView(LinearLayout(context).apply {
                     orientation = HORIZONTAL
                     gravity = Gravity.CENTER_VERTICAL
@@ -92,47 +90,49 @@ class EngineCardView(
                         typeface = Typeface.DEFAULT_BOLD
                     })
 
-                    addView(View(context).apply {
-                        layoutParams = LayoutParams(context.dpToPx(8), 1)
-                    })
-
                     // Status badge
                     statusBadge = TextView(context).apply {
                         text = ""
-                        textSize = 10f
+                        textSize = 9f
                         setPadding(context.dpToPx(6), context.dpToPx(2), context.dpToPx(6), context.dpToPx(2))
                         visibility = if (needsApiKey) View.VISIBLE else View.GONE
+                        layoutParams = LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT).apply {
+                            setMargins(context.dpToPx(8), 0, 0, 0)
+                        }
                     }
                     addView(statusBadge)
                 })
 
                 // Description
-                descText = TextView(context).apply {
+                addView(TextView(context).apply {
                     text = description
                     setTextColor(ContextCompat.getColor(context, R.color.text_secondary))
                     textSize = 12f
-                }
-                addView(descText)
+                })
             })
+
+            setOnClickListener {
+                onSelected?.invoke()
+            }
         }
         addView(container)
 
-        // API Key input container (hidden by default)
+        // API Key input container
         apiKeyContainer = LinearLayout(context).apply {
             orientation = VERTICAL
-            setPadding(context.dpToPx(44), context.dpToPx(8), context.dpToPx(12), context.dpToPx(12))
             visibility = View.GONE
+            setPadding(context.dpToPx(44), context.dpToPx(4), context.dpToPx(12), context.dpToPx(12))
             layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT)
 
-            // Input field row
+            // Input row
             addView(LinearLayout(context).apply {
                 orientation = HORIZONTAL
                 gravity = Gravity.CENTER_VERTICAL
                 layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT)
 
-                // Input field
+                // API key input
                 apiKeyInput = EditText(context).apply {
-                    hint = "Paste your API key here"
+                    hint = "Paste your API key"
                     textSize = 13f
                     setSingleLine()
                     imeOptions = EditorInfo.IME_ACTION_DONE
@@ -156,30 +156,30 @@ class EngineCardView(
                 addView(apiKeyInput)
 
                 // Save button
-                saveButton = Button(context).apply {
+                saveBtn = Button(context).apply {
                     text = "Save"
                     textSize = 12f
                     isAllCaps = false
                     setTextColor(Color.WHITE)
-                    setPadding(context.dpToPx(16), context.dpToPx(8), context.dpToPx(16), context.dpToPx(8))
-                    background = createSaveButtonBackground(engineColor)
+                    setPadding(context.dpToPx(14), context.dpToPx(8), context.dpToPx(14), context.dpToPx(8))
+                    background = createButtonBackground(engineColor)
                     setOnClickListener {
                         val key = apiKeyInput.text?.toString()?.trim() ?: ""
                         if (key.isNotEmpty()) {
                             onApiKeyEntered?.invoke(key)
                         } else {
-                            apiKeyInput.error = "Please enter API key"
+                            apiKeyInput.error = "Enter API key"
                         }
                     }
                 }
-                addView(saveButton)
+                addView(saveBtn)
             })
 
             // Help text
             addView(TextView(context).apply {
                 text = when (engineCode) {
-                    "groq" -> "Get free key: console.groq.com/keys"
-                    "gemini" -> "Get free key: aistudio.google.com/apikey"
+                    "groq" -> "Get key: console.groq.com/keys"
+                    "gemini" -> "Get key: aistudio.google.com/apikey"
                     else -> ""
                 }
                 setTextColor(ContextCompat.getColor(context, R.color.text_hint))
@@ -189,21 +189,19 @@ class EngineCardView(
         }
         addView(apiKeyContainer)
 
-        // Click listener for selection
-        container.setOnClickListener {
-            onSelected?.invoke()
-        }
+        // Initial badge update
+        updateStatusBadge()
     }
 
     fun setEngineSelected(selected: Boolean) {
-        isEngineSelected = selected
+        isSelectedEngine = selected
         container.background = createCardBackground(selected)
         radioCircle.background = createRadioBackground(selected)
         updateStatusBadge()
     }
 
     fun setApiKeyStatus(status: ApiKeyStatus) {
-        apiKeyStatus = status
+        currentApiKeyStatus = status
         updateStatusBadge()
         if (status == ApiKeyStatus.SAVED) {
             hideApiKeyInput()
@@ -211,18 +209,14 @@ class EngineCardView(
     }
 
     fun showApiKeyInput() {
-        showingApiKeyInput = true
         apiKeyContainer.visibility = View.VISIBLE
         apiKeyInput.setText("")
         apiKeyInput.requestFocus()
     }
 
     fun hideApiKeyInput() {
-        showingApiKeyInput = false
         apiKeyContainer.visibility = View.GONE
     }
-
-    fun isApiKeyInputShowing(): Boolean = showingApiKeyInput
 
     private fun updateStatusBadge() {
         if (!needsApiKey) {
@@ -231,16 +225,16 @@ class EngineCardView(
         }
 
         statusBadge.visibility = View.VISIBLE
-        when (apiKeyStatus) {
+        when (currentApiKeyStatus) {
             ApiKeyStatus.SAVED -> {
                 statusBadge.text = "✓ Ready"
                 statusBadge.setTextColor(Color.parseColor("#4CAF50"))
-                statusBadge.background = createBadgeBackground(Color.parseColor("#1B4CAF50"))
+                statusBadge.background = createBadgeBackground(Color.parseColor("#1B5E20"))
             }
             ApiKeyStatus.NONE -> {
                 statusBadge.text = "Key Required"
-                statusBadge.setTextColor(ContextCompat.getColor(context, R.color.text_secondary))
-                statusBadge.background = createBadgeBackground(Color.parseColor("#33FFFFFF"))
+                statusBadge.setTextColor(ContextCompat.getColor(context, R.color.text_hint))
+                statusBadge.background = createBadgeBackground(Color.parseColor("#333333"))
             }
         }
     }
@@ -252,7 +246,7 @@ class EngineCardView(
                 setStroke(context.dpToPx(3), engineColor)
             } else {
                 setColor(ContextCompat.getColor(context, R.color.card_background))
-                setStroke(context.dpToPx(1), Color.parseColor("#333333"))
+                setStroke(context.dpToPx(1), Color.parseColor("#444444"))
             }
             cornerRadius = context.dpToPx(12).toFloat()
         }
@@ -281,14 +275,14 @@ class EngineCardView(
         return GradientDrawable().apply {
             setColor(Color.parseColor("#1A1A2E"))
             setStroke(context.dpToPx(1), Color.parseColor("#555555"))
-            cornerRadius = context.dpToPx(8).toFloat()
+            cornerRadius = context.dpToPx(6).toFloat()
         }
     }
 
-    private fun createSaveButtonBackground(color: Int): GradientDrawable {
+    private fun createButtonBackground(color: Int): GradientDrawable {
         return GradientDrawable().apply {
             setColor(color)
-            cornerRadius = context.dpToPx(8).toFloat()
+            cornerRadius = context.dpToPx(6).toFloat()
         }
     }
 }

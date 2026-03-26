@@ -25,7 +25,7 @@ class VoiceInputView(context: Context) : LinearLayout(context) {
 
     // Callbacks
     var onEngineSelected: ((String) -> Unit)? = null
-    var onApiKeyEntered: ((String, String) -> Unit)? = null
+    var onApiKeySaved: ((engine: String, apiKey: String) -> Unit)? = null
     var onMicClicked: (() -> Unit)? = null
     var onLanguageChanged: ((Language) -> Unit)? = null
     var onInsertText: ((String) -> Unit)? = null
@@ -71,7 +71,7 @@ class VoiceInputView(context: Context) : LinearLayout(context) {
             setPadding(0, 0, 0, context.dpToPx(8))
         })
 
-        // Engine cards
+        // Android card
         androidCard = EngineCardView(
             context = context,
             engineCode = "android",
@@ -80,14 +80,14 @@ class VoiceInputView(context: Context) : LinearLayout(context) {
             description = "Free • Works without internet",
             engineColor = ContextCompat.getColor(context, R.color.engine_android),
             needsApiKey = false
-        ).apply {
-            onSelected = { 
-                Log.d(TAG, "Android card selected")
-                onEngineSelected?.invoke("android") 
-            }
+        )
+        androidCard.onSelected = { 
+            Log.d(TAG, "Android card selected")
+            onEngineSelected?.invoke("android") 
         }
         addView(androidCard)
 
+        // Groq card
         groqCard = EngineCardView(
             context = context,
             engineCode = "groq",
@@ -96,18 +96,18 @@ class VoiceInputView(context: Context) : LinearLayout(context) {
             description = "Fast & accurate transcription",
             engineColor = ContextCompat.getColor(context, R.color.engine_groq),
             needsApiKey = true
-        ).apply {
-            onSelected = { 
-                Log.d(TAG, "Groq card selected")
-                onEngineSelected?.invoke("groq") 
-            }
-            onApiKeyEntered = { key -> 
-                Log.d(TAG, "Groq API key entered")
-                onApiKeyEntered?.invoke("groq", key) 
-            }
+        )
+        groqCard.onSelected = { 
+            Log.d(TAG, "Groq card selected")
+            onEngineSelected?.invoke("groq") 
+        }
+        groqCard.onApiKeyEntered = { key -> 
+            Log.d(TAG, "Groq API key entered: ${key.take(5)}...")
+            onApiKeySaved?.invoke("groq", key) 
         }
         addView(groqCard)
 
+        // Gemini card
         geminiCard = EngineCardView(
             context = context,
             engineCode = "gemini",
@@ -116,15 +116,14 @@ class VoiceInputView(context: Context) : LinearLayout(context) {
             description = "Real-time streaming transcription",
             engineColor = ContextCompat.getColor(context, R.color.engine_gemini),
             needsApiKey = true
-        ).apply {
-            onSelected = { 
-                Log.d(TAG, "Gemini card selected")
-                onEngineSelected?.invoke("gemini") 
-            }
-            onApiKeyEntered = { key -> 
-                Log.d(TAG, "Gemini API key entered")
-                onApiKeyEntered?.invoke("gemini", key) 
-            }
+        )
+        geminiCard.onSelected = { 
+            Log.d(TAG, "Gemini card selected")
+            onEngineSelected?.invoke("gemini") 
+        }
+        geminiCard.onApiKeyEntered = { key -> 
+            Log.d(TAG, "Gemini API key entered: ${key.take(5)}...")
+            onApiKeySaved?.invoke("gemini", key) 
         }
         addView(geminiCard)
 
