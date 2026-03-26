@@ -62,6 +62,26 @@ class PreferencesManager(context: Context) {
         Log.d(TAG, "Language set to: $language")
     }
 
+    // ==================== Panel Preferences ====================
+
+    /**
+     * Get the last active panel
+     */
+    fun getLastPanel(): String {
+        return sharedPreferences.getString(AppConstants.PREF_LAST_PANEL, AppConstants.PANEL_KEYBOARD)
+            ?: AppConstants.PANEL_KEYBOARD
+    }
+
+    /**
+     * Set the last active panel
+     */
+    fun setLastPanel(panel: String) {
+        sharedPreferences.edit()
+            .putString(AppConstants.PREF_LAST_PANEL, panel)
+            .apply()
+        Log.d(TAG, "Last panel set to: $panel")
+    }
+
     // ==================== API Key Preferences ====================
 
     /**
