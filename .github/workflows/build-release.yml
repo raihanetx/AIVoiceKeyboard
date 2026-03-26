@@ -5,6 +5,9 @@ on:
     branches: [ main ]
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -12,6 +15,12 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
+
+    - name: Get version from build.gradle.kts
+      id: get_version
+      run: |
+        VERSION=$(grep 'versionName' app/build.gradle.kts | sed 's/.*versionName = "\([^"]*\)".*/\1/')
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
 
     - name: Set up JDK 17
       uses: actions/setup-java@v4
@@ -47,9 +56,14 @@ jobs:
         name: app-debug
         path: apk
 
-    - name: Get version
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Get version from build.gradle.kts
       id: version
-      run: echo "tag=v$(date +'%Y.%m.%d-%H%M')" >> $GITHUB_OUTPUT
+      run: |
+        VERSION=$(grep 'versionName' app/build.gradle.kts | sed 's/.*versionName = "\([^"]*\)".*/\1/')
+        echo "tag=v$VERSION" >> $GITHUB_OUTPUT
 
     - name: Create Release
       uses: softprops/action-gh-release@v1
@@ -57,10 +71,32 @@ jobs:
         tag_name: ${{ steps.version.outputs.tag }}
         name: AI Voice Keyboard ${{ steps.version.outputs.tag }}
         body: |
-          ## AI Voice Keyboard
-          - Voice Recognition (Gemini 2.5 Flash Native Audio)
-          - Translation (GLM-4.7-Flash)
-          - Word Prediction & Autocorrect
+          ## 🎤 AI Voice Keyboard v3.2.0
+          
+          ### 🎯 3 STT Engine Options
+          - ✅ **Android (Offline)** - Free, works without internet
+          - ✅ **Groq Whisper (Online)** - Fast and accurate
+          - ✅ **Gemini 2.5 Flash Live** - Real-time streaming transcription
+          
+          ### 🔑 API Key Settings
+          - Configure Groq API key in Settings
+          - Configure Gemini API key in Settings
+          - Keys stored securely on device
+          
+          ### 🌐 Translation
+          - English ↔ বাংলা translation
+          - Powered by GLM-4.7-Flash
+          
+          ### How to Use
+          1. Download and install APK
+          2. Enable keyboard in Android Settings
+          3. Open Settings in app to add API keys
+          4. Select AI Voice Keyboard as input method
+          5. Tap 🎤 to start voice typing!
+          
+          ### Get API Keys
+          - Groq: https://console.groq.com/keys
+          - Gemini: https://aistudio.google.com/apikey
         files: apk/*.apk
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
