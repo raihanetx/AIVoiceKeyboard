@@ -54,7 +54,7 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Free • Works without internet"
+                android:text="Continuous • Works without internet"
                 android:textColor="#888888"
                 android:textSize="12sp" />
         </LinearLayout>
@@ -121,67 +121,6 @@
         </LinearLayout>
     </LinearLayout>
 
-    <!-- Gemini Engine Card -->
-    <LinearLayout
-        android:id="@+id/cardGemini"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:background="@drawable/engine_card_bg"
-        android:padding="12dp"
-        android:layout_marginBottom="6dp"
-        android:gravity="center_vertical"
-        android:clickable="true"
-        android:focusable="true">
-
-        <View
-            android:id="@+id/radioGemini"
-            android:layout_width="22dp"
-            android:layout_height="22dp"
-            android:layout_marginEnd="12dp"
-            android:background="@drawable/radio_unselected" />
-
-        <LinearLayout
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:orientation="vertical">
-
-            <LinearLayout
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:gravity="center_vertical">
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="🟣 Gemini (Live)"
-                    android:textColor="#FFFFFF"
-                    android:textSize="15sp"
-                    android:textStyle="bold" />
-
-                <TextView
-                    android:id="@+id/badgeGemini"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="Key Required"
-                    android:textColor="#888888"
-                    android:textSize="9sp"
-                    android:padding="2dp"
-                    android:layout_marginStart="8dp"
-                    android:background="#333333" />
-            </LinearLayout>
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Real-time streaming transcription"
-                android:textColor="#888888"
-                android:textSize="12sp" />
-        </LinearLayout>
-    </LinearLayout>
-
     <!-- API Key Input for Groq -->
     <LinearLayout
         android:id="@+id/apiKeyGroqContainer"
@@ -237,67 +176,6 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="Get key: console.groq.com/keys"
-                android:textColor="#666666"
-                android:textSize="10sp"
-                android:layout_marginStart="12dp" />
-        </LinearLayout>
-    </LinearLayout>
-
-    <!-- API Key Input for Gemini -->
-    <LinearLayout
-        android:id="@+id/apiKeyGeminiContainer"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:background="@drawable/engine_card_bg"
-        android:padding="12dp"
-        android:layout_marginBottom="6dp"
-        android:visibility="gone">
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="🟣 Enter Gemini API Key"
-            android:textColor="#FFFFFF"
-            android:textSize="14sp"
-            android:textStyle="bold" />
-
-        <EditText
-            android:id="@+id/apiKeyGeminiInput"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:hint="Paste your API key here"
-            android:textColorHint="#666666"
-            android:textColor="#FFFFFF"
-            android:textSize="13sp"
-            android:padding="10dp"
-            android:background="@drawable/input_bg"
-            android:singleLine="true"
-            android:imeOptions="actionDone" />
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:layout_marginTop="8dp"
-            android:gravity="center_vertical">
-
-            <Button
-                android:id="@+id/btnSaveGeminiKey"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Save Key"
-                android:textColor="#FFFFFF"
-                android:textSize="12sp"
-                android:padding="8dp"
-                android:minHeight="0dp"
-                android:background="@drawable/btn_gemini_bg" />
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Get key: aistudio.google.com/apikey"
                 android:textColor="#666666"
                 android:textSize="10sp"
                 android:layout_marginStart="12dp" />

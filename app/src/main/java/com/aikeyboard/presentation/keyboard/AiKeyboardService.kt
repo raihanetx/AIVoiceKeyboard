@@ -7,6 +7,8 @@ import android.content.pm.PackageManager
 import android.graphics.Color
 import android.inputmethodservice.InputMethodService
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
@@ -24,7 +26,6 @@ import com.aikeyboard.data.local.PreferencesManager
 import com.aikeyboard.data.remote.api.ApiTranscriptionResult
 import com.aikeyboard.data.remote.api.GeminiLiveApi
 import com.aikeyboard.data.remote.api.GroqWhisperApi
-import com.aikeyboard.data.remote.api.ZAiApi
 import com.aikeyboard.domain.model.Language
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -42,12 +43,15 @@ class AiKeyboardService : InputMethodService() {
 
     private val preferencesManager: PreferencesManager by lazy { PreferencesManager.getInstance(this) }
     private val groqWhisperApi: GroqWhisperApi by lazy { GroqWhisperApi.getInstance(this) }
-    private val geminiLiveApi: GeminiLiveApi by lazy { GeminiLiveApi.getInstance(this) }
-    private val zAiApi: ZAiApi by lazy { ZAiApi.instance }
 
     private var speechRecognizer: SpeechRecognizer? = null
     private var audioRecorder: AudioRecorder? = null
     private var isRecording = false
+
+    // For Android continuous listening
+    private var accumulatedText = StringBuilder()
+    private var shouldRestartRecognition = false
+    private val restartHandler = Handler(Looper.getMainLooper())
 
     private var mainLayout: LinearLayout? = null
     private var voicePanel: View? = null
@@ -55,18 +59,12 @@ class AiKeyboardService : InputMethodService() {
     // Voice panel views
     private var cardAndroid: View? = null
     private var cardGroq: View? = null
-    private var cardGemini: View? = null
     private var radioAndroid: View? = null
     private var radioGroq: View? = null
-    private var radioGemini: View? = null
     private var badgeGroq: TextView? = null
-    private var badgeGemini: TextView? = null
     private var apiKeyGroqContainer: View? = null
-    private var apiKeyGeminiContainer: View? = null
     private var apiKeyGroqInput: EditText? = null
-    private var apiKeyGeminiInput: EditText? = null
     private var btnSaveGroqKey: Button? = null
-    private var btnSaveGeminiKey: Button? = null
     private var errorContainer: View? = null
     private var errorTitle: TextView? = null
     private var errorMessage: TextView? = null
@@ -127,7 +125,7 @@ class AiKeyboardService : InputMethodService() {
             gravity = Gravity.CENTER
             setPadding(8, 10, 8, 10)
 
-            listOf("ABC" to "keyboard", "🎤" to "voice", "🌐" to "translate", "😀" to "emoji").forEach { (label, panel) ->
+            listOf("ABC" to "keyboard", "🎤" to "voice", "😀" to "emoji").forEach { (label, panel) ->
                 addView(Button(this@AiKeyboardService).apply {
                     text = label
                     setTextColor(Color.WHITE)
@@ -149,7 +147,6 @@ class AiKeyboardService : InputMethodService() {
     private fun createPanelContent(panel: String): View {
         return when (panel) {
             "voice" -> createVoicePanel()
-            "translate" -> createTranslatePanel()
             "emoji" -> createEmojiPanel()
             else -> createKeyboardPanel()
         }
@@ -198,18 +195,12 @@ class AiKeyboardService : InputMethodService() {
 
         cardAndroid = voicePanel?.findViewById(R.id.cardAndroid)
         cardGroq = voicePanel?.findViewById(R.id.cardGroq)
-        cardGemini = voicePanel?.findViewById(R.id.cardGemini)
         radioAndroid = voicePanel?.findViewById(R.id.radioAndroid)
         radioGroq = voicePanel?.findViewById(R.id.radioGroq)
-        radioGemini = voicePanel?.findViewById(R.id.radioGemini)
         badgeGroq = voicePanel?.findViewById(R.id.badgeGroq)
-        badgeGemini = voicePanel?.findViewById(R.id.badgeGemini)
         apiKeyGroqContainer = voicePanel?.findViewById(R.id.apiKeyGroqContainer)
-        apiKeyGeminiContainer = voicePanel?.findViewById(R.id.apiKeyGeminiContainer)
         apiKeyGroqInput = voicePanel?.findViewById(R.id.apiKeyGroqInput)
-        apiKeyGeminiInput = voicePanel?.findViewById(R.id.apiKeyGeminiInput)
         btnSaveGroqKey = voicePanel?.findViewById(R.id.btnSaveGroqKey)
-        btnSaveGeminiKey = voicePanel?.findViewById(R.id.btnSaveGeminiKey)
         errorContainer = voicePanel?.findViewById(R.id.errorContainer)
         errorTitle = voicePanel?.findViewById(R.id.errorTitle)
         errorMessage = voicePanel?.findViewById(R.id.errorMessage)
@@ -228,11 +219,9 @@ class AiKeyboardService : InputMethodService() {
         // Card clicks
         cardAndroid?.setOnClickListener { selectEngine("android") }
         cardGroq?.setOnClickListener { handleGroqClick() }
-        cardGemini?.setOnClickListener { handleGeminiClick() }
 
-        // Save buttons
+        // Save button
         btnSaveGroqKey?.setOnClickListener { saveGroqApiKey() }
-        btnSaveGeminiKey?.setOnClickListener { saveGeminiApiKey() }
 
         // Error buttons
         btnToggleDetails?.setOnClickListener {
@@ -285,19 +274,8 @@ class AiKeyboardService : InputMethodService() {
         }
     }
 
-    private fun handleGeminiClick() {
-        hideApiKeyInputs()
-        if (preferencesManager.hasGeminiApiKey()) {
-            selectEngine("gemini")
-        } else {
-            apiKeyGeminiContainer?.visibility = View.VISIBLE
-            apiKeyGeminiInput?.requestFocus()
-        }
-    }
-
     private fun hideApiKeyInputs() {
         apiKeyGroqContainer?.visibility = View.GONE
-        apiKeyGeminiContainer?.visibility = View.GONE
     }
 
     private fun saveGroqApiKey() {
@@ -314,27 +292,11 @@ class AiKeyboardService : InputMethodService() {
         Toast.makeText(this, "Groq API Key saved!", Toast.LENGTH_SHORT).show()
     }
 
-    private fun saveGeminiApiKey() {
-        val key = apiKeyGeminiInput?.text?.toString()?.trim() ?: ""
-        if (key.isEmpty()) {
-            showError("Invalid", "API Key cannot be empty", null)
-            return
-        }
-        preferencesManager.setGeminiApiKey(key)
-        apiKeyGeminiContainer?.visibility = View.GONE
-        apiKeyGeminiInput?.setText("")
-        updateBadges()
-        selectEngine("gemini")
-        Toast.makeText(this, "Gemini API Key saved!", Toast.LENGTH_SHORT).show()
-    }
-
     private fun updateEngineUI() {
         cardAndroid?.setBackgroundResource(R.drawable.engine_card_bg)
         cardGroq?.setBackgroundResource(R.drawable.engine_card_bg)
-        cardGemini?.setBackgroundResource(R.drawable.engine_card_bg)
         radioAndroid?.setBackgroundResource(R.drawable.radio_unselected)
         radioGroq?.setBackgroundResource(R.drawable.radio_unselected)
-        radioGemini?.setBackgroundResource(R.drawable.radio_unselected)
 
         when (selectedEngine) {
             "android" -> {
@@ -347,11 +309,6 @@ class AiKeyboardService : InputMethodService() {
                 radioGroq?.setBackgroundResource(R.drawable.radio_selected_groq)
                 micButtonBg?.setBackgroundResource(R.drawable.mic_btn_groq_bg)
             }
-            "gemini" -> {
-                cardGemini?.setBackgroundResource(R.drawable.engine_card_selected_gemini)
-                radioGemini?.setBackgroundResource(R.drawable.radio_selected_gemini)
-                micButtonBg?.setBackgroundResource(R.drawable.mic_btn_gemini_bg)
-            }
         }
     }
 
@@ -362,14 +319,6 @@ class AiKeyboardService : InputMethodService() {
         } else {
             badgeGroq?.text = "Key Required"
             badgeGroq?.setTextColor(Color.parseColor("#888888"))
-        }
-
-        if (preferencesManager.hasGeminiApiKey()) {
-            badgeGemini?.text = "✓ Ready"
-            badgeGemini?.setTextColor(Color.parseColor("#4CAF50"))
-        } else {
-            badgeGemini?.text = "Key Required"
-            badgeGemini?.setTextColor(Color.parseColor("#888888"))
         }
     }
 
@@ -397,7 +346,6 @@ class AiKeyboardService : InputMethodService() {
         val msg = when (selectedEngine) {
             "android" -> "🟢 Tap mic to speak"
             "groq" -> if (preferencesManager.hasGroqApiKey()) "🔵 Tap mic to speak" else "⚠️ Enter Groq API Key"
-            "gemini" -> if (preferencesManager.hasGeminiApiKey()) "🟣 Tap mic to speak" else "⚠️ Enter Gemini API Key"
             else -> "Select an engine"
         }
         statusText?.text = msg
@@ -416,13 +364,6 @@ class AiKeyboardService : InputMethodService() {
                     return
                 }
             }
-            "gemini" -> {
-                if (!preferencesManager.hasGeminiApiKey()) {
-                    showError("API Key Required", "Please enter Gemini API key", null)
-                    apiKeyGeminiContainer?.visibility = View.VISIBLE
-                    return
-                }
-            }
         }
 
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
@@ -437,35 +378,102 @@ class AiKeyboardService : InputMethodService() {
         resultCard?.visibility = View.GONE
 
         when (selectedEngine) {
-            "android" -> startAndroidSpeechRecognizer()
+            "android" -> startAndroidContinuousListening()
             "groq" -> startGroqRecording()
-            "gemini" -> startGeminiRecording()
         }
     }
 
-    private fun startAndroidSpeechRecognizer() {
+    // ==================== ANDROID CONTINUOUS LISTENING ====================
+
+    private fun startAndroidContinuousListening() {
         if (!SpeechRecognizer.isRecognitionAvailable(this)) {
             stopRecordingWithError("Error", "Speech recognition not available", null)
             return
         }
 
+        accumulatedText.clear()
+        shouldRestartRecognition = true
+
+        createAndStartRecognizer()
+        Log.d(TAG, "Android continuous listening started")
+    }
+
+    private fun createAndStartRecognizer() {
+        speechRecognizer?.destroy()
+        speechRecognizer = null
+
         speechRecognizer = SpeechRecognizer.createSpeechRecognizer(this).apply {
             setRecognitionListener(object : RecognitionListener {
-                override fun onReadyForSpeech(params: Bundle?) { statusText?.text = "Listening..." }
+                override fun onReadyForSpeech(params: Bundle?) {
+                    statusText?.text = "🔴 Listening... (tap to stop)"
+                }
+
                 override fun onBeginningOfSpeech() {}
+
                 override fun onRmsChanged(rmsdB: Float) {}
+
                 override fun onBufferReceived(buffer: ByteArray?) {}
-                override fun onEndOfSpeech() { statusText?.text = "Processing..." }
-                override fun onError(error: Int) { stopRecordingWithError("Error", getSpeechErrorText(error), null) }
+
+                override fun onEndOfSpeech() {
+                    // Don't stop - restart if we should continue
+                    if (shouldRestartRecognition && isRecording) {
+                        Log.d(TAG, "Recognition ended, restarting...")
+                        restartHandler.postDelayed({ restartAndroidRecognizer() }, 300)
+                    }
+                }
+
+                override fun onError(error: Int) {
+                    Log.d(TAG, "Recognition error: $error")
+
+                    // Restart on recoverable errors
+                    if (shouldRestartRecognition && isRecording) {
+                        when (error) {
+                            SpeechRecognizer.ERROR_NO_MATCH,
+                            SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> {
+                                Log.d(TAG, "Recoverable error, restarting...")
+                                restartHandler.postDelayed({ restartAndroidRecognizer() }, 300)
+                            }
+                            else -> {
+                                // Non-recoverable error
+                                val errorText = getSpeechErrorText(error)
+                                if (accumulatedText.isNotEmpty()) {
+                                    // We have some text, show it
+                                    showResult(accumulatedText.toString().trim())
+                                } else {
+                                    stopRecordingWithError("Error", errorText, null)
+                                }
+                            }
+                        }
+                    }
+                }
+
                 override fun onResults(results: Bundle?) {
                     val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
-                    if (!matches.isNullOrEmpty()) showResult(matches[0])
-                    else stopRecordingWithError("No Speech", "Nothing detected", null)
+                    if (!matches.isNullOrEmpty()) {
+                        accumulatedText.append(matches[0]).append(" ")
+                        statusText?.text = "🔴 ${accumulatedText.toString().take(30)}..."
+                        Log.d(TAG, "Got text: ${matches[0]}, accumulated: ${accumulatedText}")
+                    }
+
+                    // Restart for continuous listening
+                    if (shouldRestartRecognition && isRecording) {
+                        restartHandler.postDelayed({ restartAndroidRecognizer() }, 200)
+                    }
                 }
+
                 override fun onPartialResults(partialResults: Bundle?) {
                     val matches = partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
-                    if (!matches.isNullOrEmpty()) statusText?.text = matches[0]
+                    if (!matches.isNullOrEmpty()) {
+                        val partialText = matches[0]
+                        val displayText = if (accumulatedText.isNotEmpty()) {
+                            "${accumulatedText} $partialText"
+                        } else {
+                            partialText
+                        }
+                        statusText?.text = "🔴 $displayText"
+                    }
                 }
+
                 override fun onEvent(eventType: Int, params: Bundle?) {}
             })
         }
@@ -474,9 +482,23 @@ class AiKeyboardService : InputMethodService() {
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
             putExtra(RecognizerIntent.EXTRA_LANGUAGE, currentLanguage.localeCode)
             putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
+            putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
         }
+
         speechRecognizer?.startListening(intent)
     }
+
+    private fun restartAndroidRecognizer() {
+        if (shouldRestartRecognition && isRecording) {
+            try {
+                createAndStartRecognizer()
+            } catch (e: Exception) {
+                Log.e(TAG, "Error restarting recognizer", e)
+            }
+        }
+    }
+
+    // ==================== GROQ RECORDING ====================
 
     private fun startGroqRecording() {
         val audioFile = audioRecorder?.startRecording()
@@ -485,37 +507,42 @@ class AiKeyboardService : InputMethodService() {
         }
     }
 
-    private fun startGeminiRecording() {
-        val audioFile = audioRecorder?.startRecording()
-        if (audioFile == null) {
-            stopRecordingWithError("Error", "Could not start recording", null)
-        }
-    }
+    // ==================== STOP RECORDING ====================
 
     private fun stopRecording() {
         isRecording = false
+        shouldRestartRecognition = false
+        restartHandler.removeCallbacksAndMessages(null)
+
         updateEngineUI()
 
-        if (selectedEngine == "android") {
-            speechRecognizer?.stopListening()
-            speechRecognizer?.destroy()
-            speechRecognizer = null
-            updateStatus()
-        } else {
-            val audioFile = audioRecorder?.stopRecording()
-            if (audioFile != null && audioFile.exists() && audioFile.length() > 0) {
-                statusText?.text = "Transcribing..."
-                CoroutineScope(Dispatchers.IO).launch {
-                    val result = if (selectedEngine == "gemini") {
-                        geminiLiveApi.transcribe(audioFile, currentLanguage.code)
-                    } else {
-                        groqWhisperApi.transcribe(audioFile, currentLanguage.code)
-                    }
-                    withContext(Dispatchers.Main) { handleTranscriptionResult(result) }
-                    audioFile.delete()
+        when (selectedEngine) {
+            "android" -> {
+                speechRecognizer?.stopListening()
+                speechRecognizer?.destroy()
+                speechRecognizer = null
+
+                // Show accumulated text
+                val finalText = accumulatedText.toString().trim()
+                if (finalText.isNotEmpty()) {
+                    showResult(finalText)
+                } else {
+                    updateStatus()
+                    statusText?.text = "No speech detected"
                 }
-            } else {
-                stopRecordingWithError("Error", "No audio recorded", null)
+            }
+            "groq" -> {
+                val audioFile = audioRecorder?.stopRecording()
+                if (audioFile != null && audioFile.exists() && audioFile.length() > 0) {
+                    statusText?.text = "Transcribing..."
+                    CoroutineScope(Dispatchers.IO).launch {
+                        val result = groqWhisperApi.transcribe(audioFile, currentLanguage.code)
+                        withContext(Dispatchers.Main) { handleTranscriptionResult(result) }
+                        audioFile.delete()
+                    }
+                } else {
+                    stopRecordingWithError("Error", "No audio recorded", null)
+                }
             }
         }
     }
@@ -530,6 +557,8 @@ class AiKeyboardService : InputMethodService() {
 
     private fun stopRecordingWithError(title: String, message: String?, details: String?) {
         isRecording = false
+        shouldRestartRecognition = false
+        restartHandler.removeCallbacksAndMessages(null)
         speechRecognizer?.destroy()
         speechRecognizer = null
         updateEngineUI()
@@ -539,6 +568,7 @@ class AiKeyboardService : InputMethodService() {
 
     private fun showResult(text: String) {
         isRecording = false
+        shouldRestartRecognition = false
         updateEngineUI()
         resultText?.text = text
         resultCard?.visibility = View.VISIBLE
@@ -578,27 +608,13 @@ class AiKeyboardService : InputMethodService() {
         Toast.makeText(this, "Copied!", Toast.LENGTH_SHORT).show()
     }
 
-    private fun createTranslatePanel(): LinearLayout {
-        return LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(16, 12, 16, 12)
-            setBackgroundColor(Color.parseColor("#1A1A2E"))
-            addView(TextView(context).apply {
-                text = "🌐 Translate"
-                setTextColor(Color.WHITE)
-                textSize = 18f
-                gravity = Gravity.CENTER
-            })
-        }
-    }
-
     private fun createEmojiPanel(): LinearLayout {
         return LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(8, 8, 8, 8)
             setBackgroundColor(Color.parseColor("#1A1A2E"))
             gravity = Gravity.CENTER
-            val emojis = listOf("😀", "😂", "😍", "🥰", "😎", "🤔", "👍", "👎", "❤️", "🔥")
+            val emojis = listOf("😀", "😂", "😍", "🥰", "😎", "🤔", "👍", "👎", "❤️", "🔥", "🙏", "😢")
             addView(LinearLayout(context).apply {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = Gravity.CENTER
@@ -647,6 +663,8 @@ class AiKeyboardService : InputMethodService() {
     }
 
     override fun onDestroy() {
+        shouldRestartRecognition = false
+        restartHandler.removeCallbacksAndMessages(null)
         speechRecognizer?.destroy()
         audioRecorder?.release()
         super.onDestroy()
