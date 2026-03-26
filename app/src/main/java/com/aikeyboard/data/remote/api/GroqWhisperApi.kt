@@ -30,39 +30,13 @@ private const val TAG = "GroqWhisperApi"
  */
 class GroqWhisperApi(private val context: Context) {
 
-    // Fallback key - built from parts at runtime
-    private val fallbackApiKey: String by lazy {
-        buildKey()
-    }
-
-    private fun buildKey(): String {
-        // Key parts - reassembled at runtime
-        val a = charArrayOf('g', 's', 'k', '_')
-        val b = charArrayOf('P', '5', 'U', '6')
-        val c = charArrayOf('U', 'S', 'h', '6')
-        val d = charArrayOf('V', '5', '2', 't')
-        val e = charArrayOf('s', 'b', 'W', 'R')
-        val f = charArrayOf('h', 'A', 'f', 'W')
-        val g = charArrayOf('W', 'G', 'd', 'y')
-        val h = charArrayOf('b', '3', 'F', 'Y')
-        val i = charArrayOf('d', 'q', 'u', 'V')
-        val j = charArrayOf('a', 'W', '9', 'M')
-        val k = charArrayOf('6', 's', 'I', '3')
-        val l = charArrayOf('6', '1', 'B', 'y')
-        val m = charArrayOf('0', 's', 'n', 'N')
-        val n = charArrayOf('m', 'h', '0', 'p')
-        return String(a) + String(b) + String(c) + String(d) + String(e) + String(f) + 
-               String(g) + String(h) + String(i) + String(j) + String(k) + String(l) + 
-               String(m) + String(n)
-    }
-
     private val client = OkHttpClient.Builder()
         .connectTimeout(ApiConstants.CONNECT_TIMEOUT, TimeUnit.SECONDS)
         .readTimeout(ApiConstants.READ_TIMEOUT, TimeUnit.SECONDS)
         .writeTimeout(ApiConstants.WRITE_TIMEOUT, TimeUnit.SECONDS)
         .addInterceptor { chain ->
             val request = chain.request().newBuilder()
-                .addHeader("User-Agent", "AIVoiceKeyboard/3.6.2 (Android ${android.os.Build.VERSION.RELEASE}; ${android.os.Build.MODEL})")
+                .addHeader("User-Agent", "AIVoiceKeyboard/3.7.0 (Android ${android.os.Build.VERSION.RELEASE}; ${android.os.Build.MODEL})")
                 .addHeader("Accept", "application/json")
                 .addHeader("Accept-Language", "en-US,en;q=0.9")
                 .addHeader("Cache-Control", "no-cache")
@@ -74,17 +48,12 @@ class GroqWhisperApi(private val context: Context) {
     private val preferencesManager: PreferencesManager by lazy { PreferencesManager.getInstance(context) }
 
     /**
-     * Get API key - from preferences or fallback
+     * Get API key from preferences
      */
     private fun getApiKey(): String {
         val savedKey = preferencesManager.getGroqApiKey().trim()
-        return if (savedKey.isNotBlank()) {
-            Log.d(TAG, "Using saved API key from preferences")
-            savedKey
-        } else {
-            Log.d(TAG, "Using fallback API key")
-            fallbackApiKey
-        }
+        Log.d(TAG, "API key from preferences: length=${savedKey.length}, prefix=${if (savedKey.isNotEmpty()) savedKey.take(7) else "empty"}")
+        return savedKey
     }
 
     /**
@@ -109,8 +78,13 @@ class GroqWhisperApi(private val context: Context) {
                 return@withContext Result.failure(Exception("Audio file is empty"))
             }
 
-            // Get API key (from preferences or fallback)
+            // Get API key from preferences
             val apiKey = getApiKey()
+            if (apiKey.isEmpty()) {
+                Log.e(TAG, "No API key configured!")
+                return@withContext Result.failure(Exception("Please enter your Groq API key"))
+            }
+            
             Log.d(TAG, "========== TRANSCRIBE START ==========")
             Log.d(TAG, "Audio: ${audioFile.name}, size: ${audioFile.length()} bytes")
             Log.d(TAG, "Language: $language")
@@ -184,10 +158,9 @@ class GroqWhisperApi(private val context: Context) {
 
     /**
      * Check if the API is configured and available
-     * Always returns true since we have a fallback API key
      */
     fun isConfigured(): Boolean {
-        return true
+        return preferencesManager.hasGroqApiKey()
     }
 
     /**
