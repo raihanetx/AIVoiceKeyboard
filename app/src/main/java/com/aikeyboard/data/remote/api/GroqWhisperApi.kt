@@ -60,6 +60,15 @@ class GroqWhisperApi(private val context: Context) {
         .connectTimeout(ApiConstants.CONNECT_TIMEOUT, TimeUnit.SECONDS)
         .readTimeout(ApiConstants.READ_TIMEOUT, TimeUnit.SECONDS)
         .writeTimeout(ApiConstants.WRITE_TIMEOUT, TimeUnit.SECONDS)
+        .addInterceptor { chain ->
+            val request = chain.request().newBuilder()
+                .addHeader("User-Agent", "AIVoiceKeyboard/3.6.2 (Android ${android.os.Build.VERSION.RELEASE}; ${android.os.Build.MODEL})")
+                .addHeader("Accept", "application/json")
+                .addHeader("Accept-Language", "en-US,en;q=0.9")
+                .addHeader("Cache-Control", "no-cache")
+                .build()
+            chain.proceed(request)
+        }
         .build()
 
     private val preferencesManager: PreferencesManager by lazy { PreferencesManager.getInstance(context) }
@@ -92,22 +101,25 @@ class GroqWhisperApi(private val context: Context) {
         try {
             // Validate file
             if (!audioFile.exists()) {
+                Log.e(TAG, "Audio file does not exist: ${audioFile.absolutePath}")
                 return@withContext Result.failure(Exception("Audio file does not exist"))
             }
             if (audioFile.length() == 0L) {
+                Log.e(TAG, "Audio file is empty")
                 return@withContext Result.failure(Exception("Audio file is empty"))
             }
 
             // Get API key (from preferences or fallback)
             val apiKey = getApiKey()
-            Log.d(TAG, "=== TRANSCRIBE START ===")
-            Log.d(TAG, "Audio file: ${audioFile.name}, size: ${audioFile.length()} bytes")
-            Log.d(TAG, "API key length: ${apiKey.length}, starts with: ${apiKey.take(7)}...")
+            Log.d(TAG, "========== TRANSCRIBE START ==========")
+            Log.d(TAG, "Audio: ${audioFile.name}, size: ${audioFile.length()} bytes")
+            Log.d(TAG, "Language: $language")
+            Log.d(TAG, "API Key: length=${apiKey.length}, prefix=${apiKey.take(7)}...")
 
             val audioBytes = audioFile.readBytes()
             val mimeType = getMimeType(audioFile)
 
-            Log.d(TAG, "MimeType: $mimeType, audioBytes: ${audioBytes.size}")
+            Log.d(TAG, "MimeType: $mimeType, Bytes: ${audioBytes.size}")
 
             // Build multipart form request
             val requestBody = MultipartBody.Builder()
@@ -123,27 +135,38 @@ class GroqWhisperApi(private val context: Context) {
                 )
                 .build()
 
+            val url = "${ApiConstants.GROQ_ENDPOINT}/audio/transcriptions"
+            Log.d(TAG, "Request URL: $url")
+
             val request = Request.Builder()
-                .url("${ApiConstants.GROQ_ENDPOINT}/audio/transcriptions")
+                .url(url)
                 .addHeader("Authorization", "Bearer $apiKey")
                 .post(requestBody)
                 .build()
 
+            Log.d(TAG, "Sending request to Groq API...")
+            
             client.newCall(request).execute().use { response ->
                 val bodyString = response.body?.string()
+                Log.d(TAG, "Response code: ${response.code}")
+                Log.d(TAG, "Response body: $bodyString")
                 
                 if (response.isSuccessful && !bodyString.isNullOrBlank()) {
                     val transcriptionResponse = TranscriptionResponse.fromJson(bodyString)
                     
                     if (transcriptionResponse.isValid) {
-                        Log.d(TAG, "Transcription success: ${transcriptionResponse.text.take(50)}...")
+                        Log.d(TAG, "========== TRANSCRIBE SUCCESS ==========")
+                        Log.d(TAG, "Result: ${transcriptionResponse.text}")
                         Result.success(transcriptionResponse.text.trim())
                     } else {
+                        Log.e(TAG, "Empty transcription result")
                         Result.failure(Exception("Empty transcription"))
                     }
                 } else {
                     val errorMessage = parseError(response.code, bodyString)
-                    Log.e(TAG, "API Error: ${response.code} - $errorMessage")
+                    Log.e(TAG, "========== TRANSCRIBE FAILED ==========")
+                    Log.e(TAG, "Error: $errorMessage")
+                    Log.e(TAG, "Full response: $bodyString")
                     Result.failure(Exception(errorMessage))
                 }
             }
