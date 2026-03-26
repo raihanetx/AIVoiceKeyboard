@@ -74,42 +74,32 @@ jobs:
         tag_name: ${{ steps.version.outputs.tag }}
         name: AI Voice Keyboard ${{ steps.version.outputs.tag }}
         body: |
-          ## 🎤 AI Voice Keyboard v3.3.0
+          ## 🎤 AI Voice Keyboard v3.4.0
           
-          ### ✨ Improved Voice Section UI
-          - **Active Engine Banner** - Shows currently selected engine with color
-          - **Engine Selection Cards** - Beautiful cards with ON/OFF switches
-          - **Color-coded Engines**:
-            - 🟢 Android (Offline) - Green
-            - 🔵 Groq (Online) - Blue
-            - 🟣 Gemini (Live) - Purple
-          - **Visual Mic Button** - Shows engine color indicator
-          - **Enhanced Status Text** - Always shows active engine name
+          ### ✨ Fixed Voice Section - Now Works Properly!
+          - **Radio Button Selection** - Select ONE engine at a time
+          - **"Set API Key" Button** - Opens Settings to input key
+          - **Selection Persists** - Your choice is saved
+          - **Clear Visual Feedback** - Shows which engine is active
           
           ### 🎯 3 STT Engine Options
-          - ✅ **Android (Offline)** - Free, works without internet
-          - ✅ **Groq Whisper (Online)** - Fast and accurate
-          - ✅ **Gemini 2.5 Flash Live** - Real-time streaming transcription
+          - 🟢 **Android (Offline)** - Free, no API key needed
+          - 🔵 **Groq (Online)** - Fast & accurate, needs API key
+          - 🟣 **Gemini (Live)** - Best quality, needs API key
           
-          ### 🔑 API Key Settings
-          - Configure Groq API key in Settings
-          - Configure Gemini API key in Settings
-          - Keys stored securely on device
-          
-          ### 🌐 Translation
-          - English ↔ বাংলা translation
-          - Powered by GLM-4.7-Flash
-          
-          ### How to Use
-          1. Download and install APK
-          2. Enable keyboard in Android Settings
-          3. Open Settings in app to add API keys
-          4. Select AI Voice Keyboard as input method
-          5. Tap 🎤 to start voice typing!
+          ### 🔑 How to Use
+          1. Select an engine (Android/Groq/Gemini)
+          2. If Groq/Gemini: Tap "Set API Key" button
+          3. Enter your API key in Settings
+          4. Come back and tap 🎤 to speak
           
           ### Get API Keys
           - Groq: https://console.groq.com/keys
           - Gemini: https://aistudio.google.com/apikey
+          
+          ### 🌐 Translation
+          - English ↔ বাংলা translation
+          - Powered by GLM-4.7-Flash
         files: apk/*.apk
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -50,6 +50,9 @@ class AiKeyboardService : InputMethodService() {
     // Controller for state management
     private val controller = KeyboardController()
 
+    // Voice input view reference for updates
+    private var voiceInputView: VoiceInputView? = null
+
     // Voice recognition
     private var speechRecognizer: SpeechRecognizer? = null
     private var audioRecorder: AudioRecorder? = null
@@ -74,6 +77,8 @@ class AiKeyboardService : InputMethodService() {
 
     override fun onCreateInputView(): View {
         Log.d(TAG, "=== Creating keyboard view ===")
+        // Load saved preferences
+        loadPreferences()
         return try {
             mainLayout = createMainLayout()
             mainLayout!!
@@ -81,6 +86,17 @@ class AiKeyboardService : InputMethodService() {
             Log.e(TAG, "Error creating keyboard view", e)
             createErrorView("Error: ${e.message}")
         }
+    }
+
+    /**
+     * Load saved preferences into controller
+     */
+    private fun loadPreferences() {
+        val savedEngine = preferencesManager.getSttEngine()
+        val savedLanguage = preferencesManager.getLanguage()
+        controller.setSttEngine(savedEngine)
+        controller.setLanguage(savedLanguage)
+        Log.d(TAG, "Loaded preferences - Engine: $savedEngine, Language: $savedLanguage")
     }
 
     /**
@@ -235,14 +251,30 @@ class AiKeyboardService : InputMethodService() {
             setPadding(16, 16, 16, 16)
             gravity = Gravity.CENTER_HORIZONTAL
 
-            val voiceInputView = VoiceInputView.create(
+            voiceInputView = VoiceInputView.create(
                 context = this@AiKeyboardService,
                 onMicClick = { toggleVoiceRecording() },
-                onEngineChange = { engine -> controller.setSttEngine(engine) },
-                onLanguageChange = { language -> controller.setLanguage(language) },
-                onInsertText = { text -> insertText(text) }
+                onEngineChange = { engine ->
+                    // Save and update engine
+                    preferencesManager.setSttEngine(engine)
+                    controller.setSttEngine(engine)
+                    // Refresh the view to show selection
+                    voiceInputView?.updateState(controller.state)
+                    Log.d(TAG, "Engine changed to: $engine")
+                },
+                onLanguageChange = { language ->
+                    controller.setLanguage(language)
+                    voiceInputView?.updateState(controller.state)
+                },
+                onInsertText = { text -> insertText(text) },
+                onOpenSettings = {
+                    // Open the Settings activity
+                    val intent = Intent(this@AiKeyboardService, com.aikeyboard.presentation.settings.MainActivity::class.java)
+                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    startActivity(intent)
+                }
             )
-            voiceInputView.updateState(controller.state)
+            voiceInputView?.updateState(controller.state)
             addView(voiceInputView)
         }
     }

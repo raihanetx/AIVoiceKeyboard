@@ -1,6 +1,7 @@
 package com.aikeyboard.presentation.keyboard.view
 
 import android.Manifest
+import android.app.AlertDialog
 import android.content.Context
 import android.content.pm.PackageManager
 import android.graphics.Color
@@ -11,7 +12,6 @@ import android.view.View
 import android.widget.*
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import androidx.core.view.setPadding
 import com.aikeyboard.R
 import com.aikeyboard.core.constants.AppConstants
 import com.aikeyboard.core.extension.dpToPx
@@ -20,38 +20,34 @@ import com.aikeyboard.presentation.keyboard.KeyboardUiState
 
 /**
  * Voice input view for speech-to-text
- *
- * Displays a voice input panel with recording controls and result display.
- * Supports 3 STT engines: Android (Offline), Groq (Online), Gemini (Live)
+ * Simple and functional - 3 engines with radio selection
  */
 class VoiceInputView(
     context: Context,
     private val onMicClick: () -> Unit,
     private val onEngineChange: (String) -> Unit,
     private val onLanguageChange: (Language) -> Unit,
-    private val onInsertText: (String) -> Unit
+    private val onInsertText: (String) -> Unit,
+    private val onOpenSettings: () -> Unit
 ) : LinearLayout(context) {
 
-    private var activeBanner: LinearLayout? = null
-    private var activeBannerText: TextView? = null
-    private var activeBannerIcon: TextView? = null
-
+    // UI Components
     private var statusText: TextView? = null
     private var resultText: TextView? = null
     private var resultCard: LinearLayout? = null
     private var micButton: FrameLayout? = null
-    private var micIcon: TextView? = null
-    private var micEngineIndicator: View? = null
 
-    // Engine cards
-    private var androidCard: LinearLayout? = null
-    private var groqCard: LinearLayout? = null
-    private var geminiCard: LinearLayout? = null
+    // Engine radio buttons
+    private var androidRadio: RadioButton? = null
+    private var groqRadio: RadioButton? = null
+    private var geminiRadio: RadioButton? = null
 
-    // Engine switches
-    private var androidSwitch: Switch? = null
-    private var groqSwitch: Switch? = null
-    private var geminiSwitch: Switch? = null
+    // API Key status indicators
+    private var groqKeyStatus: TextView? = null
+    private var geminiKeyStatus: TextView? = null
+
+    // Current state
+    private var currentState: KeyboardUiState? = null
 
     init {
         orientation = VERTICAL
@@ -65,10 +61,8 @@ class VoiceInputView(
         gravity = Gravity.CENTER_HORIZONTAL
     }
 
-    /**
-     * Update the view based on state
-     */
     fun updateState(state: KeyboardUiState) {
+        currentState = state
         if (childCount == 0) {
             buildView(state)
         } else {
@@ -76,24 +70,17 @@ class VoiceInputView(
         }
     }
 
-    /**
-     * Build the complete voice input view
-     */
     private fun buildView(state: KeyboardUiState) {
         // Title
         addView(createTitle())
 
-        // Active Engine Banner
-        activeBanner = createActiveBanner(state)
-        addView(activeBanner)
-
-        // Engine selection cards
-        addView(createEngineCardsSection(state))
+        // Engine selection section
+        addView(createEngineSection(state))
 
         // Language switcher
         addView(createLanguageSwitcher(state))
 
-        // Mic button with engine indicator
+        // Mic button
         micButton = createMicButton(state)
         addView(micButton)
 
@@ -106,12 +93,9 @@ class VoiceInputView(
         addView(resultCard)
     }
 
-    /**
-     * Create section title
-     */
     private fun createTitle(): TextView {
         return TextView(context).apply {
-            text = "🎤 Voice Recognition"
+            text = "🎤 Voice Typing"
             setTextColor(ContextCompat.getColor(context, R.color.text_primary))
             textSize = 16f
             typeface = Typeface.DEFAULT_BOLD
@@ -120,61 +104,16 @@ class VoiceInputView(
         }
     }
 
-    /**
-     * Create active engine banner
-     */
-    private fun createActiveBanner(state: KeyboardUiState): LinearLayout {
-        return LinearLayout(context).apply {
-            orientation = HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(
-                context.dpToPx(12),
-                context.dpToPx(10),
-                context.dpToPx(12),
-                context.dpToPx(10)
-            )
-            layoutParams = LayoutParams(
-                LayoutParams.MATCH_PARENT,
-                LayoutParams.WRAP_CONTENT
-            ).apply {
-                setMargins(0, 0, 0, context.dpToPx(12))
-            }
-
-            // Set background with rounded corners
-            background = createRoundedDrawable(
-                fillColor = getEngineColorDark(state.sttEngine),
-                cornerRadius = 8f
-            )
-
-            // Engine icon/badge
-            activeBannerIcon = TextView(context).apply {
-                text = getEngineEmoji(state.sttEngine)
-                textSize = 16f
-            }
-            addView(activeBannerIcon)
-
-            // Spacing
-            addView(View(context).apply {
-                layoutParams = LayoutParams(context.dpToPx(8), 1)
-            })
-
-            // Active text
-            activeBannerText = TextView(context).apply {
-                text = "${getEngineName(state.sttEngine)} - READY"
-                setTextColor(Color.WHITE)
-                textSize = 13f
-                typeface = Typeface.DEFAULT_BOLD
-            }
-            addView(activeBannerText)
-        }
-    }
-
-    /**
-     * Create engine cards section
-     */
-    private fun createEngineCardsSection(state: KeyboardUiState): LinearLayout {
+    private fun createEngineSection(state: KeyboardUiState): LinearLayout {
         return LinearLayout(context).apply {
             orientation = VERTICAL
+            setBackgroundColor(ContextCompat.getColor(context, R.color.card_background))
+            setPadding(
+                context.dpToPx(12),
+                context.dpToPx(12),
+                context.dpToPx(12),
+                context.dpToPx(12)
+            )
             layoutParams = LayoutParams(
                 LayoutParams.MATCH_PARENT,
                 LayoutParams.WRAP_CONTENT
@@ -182,210 +121,213 @@ class VoiceInputView(
                 setMargins(0, 0, 0, context.dpToPx(12))
             }
 
-            // Section label
+            // Section title
             addView(TextView(context).apply {
-                text = "Select STT Engine"
+                text = "Select Engine:"
                 setTextColor(ContextCompat.getColor(context, R.color.text_secondary))
                 textSize = 12f
                 setPadding(0, 0, 0, context.dpToPx(8))
             })
 
-            // Android Card
-            androidCard = createEngineCard(
-                engineCode = AppConstants.STT_ENGINE_ANDROID,
-                emoji = "🟢",
-                name = "Android (Offline)",
-                description = "Works without internet, unlimited free",
-                isSelected = state.isUsingAndroidStt,
-                engineColor = ContextCompat.getColor(context, R.color.engine_android)
-            )
-            addView(androidCard)
+            // RadioGroup for engines
+            addView(RadioGroup(context).apply {
+                orientation = RadioGroup.VERTICAL
+                id = View.generateViewId()
 
-            // Spacing between cards
-            addView(View(context).apply {
-                layoutParams = LayoutParams(1, context.dpToPx(6))
+                // Android Offline option
+                addView(createEngineRadio(
+                    text = "🟢 Android (Offline)",
+                    description = "Free, no internet needed",
+                    isSelected = state.isUsingAndroidStt,
+                    engineCode = AppConstants.STT_ENGINE_ANDROID
+                ) { androidRadio = it })
+
+                // Groq Online option
+                addView(createEngineRadioWithStatus(
+                    text = "🔵 Groq (Online)",
+                    description = "Fast & accurate",
+                    isSelected = state.isUsingGroqStt,
+                    engineCode = AppConstants.STT_ENGINE_GROQ,
+                    needsApiKey = true
+                ) { radio, status ->
+                    groqRadio = radio
+                    groqKeyStatus = status
+                })
+
+                // Gemini Live option
+                addView(createEngineRadioWithStatus(
+                    text = "🟣 Gemini (Live)",
+                    description = "Best quality streaming",
+                    isSelected = state.isUsingGeminiStt,
+                    engineCode = AppConstants.STT_ENGINE_GEMINI,
+                    needsApiKey = true
+                ) { radio, status ->
+                    geminiRadio = radio
+                    geminiKeyStatus = status
+                })
+
+                setOnCheckedChangeListener { _, checkedId ->
+                    handleEngineSelection(checkedId)
+                }
             })
-
-            // Groq Card
-            groqCard = createEngineCard(
-                engineCode = AppConstants.STT_ENGINE_GROQ,
-                emoji = "🔵",
-                name = "Groq (Online)",
-                description = "Fast & accurate, requires API key",
-                isSelected = state.isUsingGroqStt,
-                engineColor = ContextCompat.getColor(context, R.color.engine_groq)
-            )
-            addView(groqCard)
-
-            // Spacing between cards
-            addView(View(context).apply {
-                layoutParams = LayoutParams(1, context.dpToPx(6))
-            })
-
-            // Gemini Card
-            geminiCard = createEngineCard(
-                engineCode = AppConstants.STT_ENGINE_GEMINI,
-                emoji = "🟣",
-                name = "Gemini (Live)",
-                description = "Best quality streaming, requires API key",
-                isSelected = state.isUsingGeminiStt,
-                engineColor = ContextCompat.getColor(context, R.color.engine_gemini)
-            )
-            addView(geminiCard)
         }
     }
 
-    /**
-     * Create an engine selection card
-     */
-    private fun createEngineCard(
-        engineCode: String,
-        emoji: String,
-        name: String,
+    private fun createEngineRadio(
+        text: String,
         description: String,
         isSelected: Boolean,
-        engineColor: Int
+        engineCode: String,
+        onCreated: (RadioButton) -> Unit
     ): LinearLayout {
         return LinearLayout(context).apply {
             orientation = HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(
-                context.dpToPx(12),
-                context.dpToPx(10),
-                context.dpToPx(12),
-                context.dpToPx(10)
-            )
-            layoutParams = LayoutParams(
-                LayoutParams.MATCH_PARENT,
-                LayoutParams.WRAP_CONTENT
-            )
+            setPadding(0, context.dpToPx(4), 0, context.dpToPx(4))
 
-            // Set background
-            updateCardBackground(this, isSelected, engineColor)
+            val radioButton = RadioButton(context).apply {
+                id = View.generateViewId()
+                this.isChecked = isSelected
+                setTextColor(ContextCompat.getColor(context, R.color.text_primary))
+                textSize = 14f
+                tag = engineCode
+            }
+            onCreated(radioButton)
+            addView(radioButton)
 
-            // Left color indicator
-            addView(View(context).apply {
-                layoutParams = LayoutParams(context.dpToPx(4), context.dpToPx(40))
-                background = createRoundedDrawable(
-                    fillColor = engineColor,
-                    cornerRadius = 2f
-                )
-            })
-
-            // Spacing
-            addView(View(context).apply {
-                layoutParams = LayoutParams(context.dpToPx(10), 1)
-            })
-
-            // Text container
             addView(LinearLayout(context).apply {
                 orientation = VERTICAL
+                setPadding(context.dpToPx(8), 0, 0, 0)
                 layoutParams = LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f)
 
                 addView(TextView(context).apply {
-                    text = "$emoji $name"
+                    this.text = text
                     setTextColor(ContextCompat.getColor(context, R.color.text_primary))
                     textSize = 14f
-                    typeface = Typeface.DEFAULT_BOLD
                 })
                 addView(TextView(context).apply {
-                    text = description
+                    this.text = description
                     setTextColor(ContextCompat.getColor(context, R.color.text_secondary))
                     textSize = 11f
                 })
             })
+        }
+    }
 
-            // Switch
-            addView(Switch(context).apply {
-                this.isChecked = isSelected
-                thumbTintList = android.content.res.ColorStateList.valueOf(Color.WHITE)
-                trackTintList = android.content.res.ColorStateList.valueOf(engineColor)
-                setOnCheckedChangeListener { _, isChecked ->
-                    handleEngineSwitch(engineCode, isChecked)
+    private fun createEngineRadioWithStatus(
+        text: String,
+        description: String,
+        isSelected: Boolean,
+        engineCode: String,
+        needsApiKey: Boolean,
+        onCreated: (RadioButton, TextView) -> Unit
+    ): LinearLayout {
+        var statusTextView: TextView? = null
+
+        return LinearLayout(context).apply {
+            orientation = VERTICAL
+            setPadding(0, context.dpToPx(4), 0, context.dpToPx(4))
+
+            addView(LinearLayout(context).apply {
+                orientation = HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT)
+
+                val radioButton = RadioButton(context).apply {
+                    id = View.generateViewId()
+                    this.isChecked = isSelected
+                    setTextColor(ContextCompat.getColor(context, R.color.text_primary))
+                    textSize = 14f
+                    tag = engineCode
                 }
 
-                // Store reference
-                when (engineCode) {
-                    AppConstants.STT_ENGINE_ANDROID -> androidSwitch = this
-                    AppConstants.STT_ENGINE_GROQ -> groqSwitch = this
-                    AppConstants.STT_ENGINE_GEMINI -> geminiSwitch = this
+                addView(radioButton)
+
+                addView(LinearLayout(context).apply {
+                    orientation = VERTICAL
+                    setPadding(context.dpToPx(8), 0, 0, 0)
+                    layoutParams = LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f)
+
+                    addView(TextView(context).apply {
+                        this.text = text
+                        setTextColor(ContextCompat.getColor(context, R.color.text_primary))
+                        textSize = 14f
+                    })
+                    addView(TextView(context).apply {
+                        this.text = description
+                        setTextColor(ContextCompat.getColor(context, R.color.text_secondary))
+                        textSize = 11f
+                    })
+                })
+
+                // API Key status
+                statusTextView = TextView(context).apply {
+                    text = "❌ No Key"
+                    setTextColor(Color.parseColor("#FF5252"))
+                    textSize = 10f
+                    setPadding(context.dpToPx(4), context.dpToPx(2), context.dpToPx(4), context.dpToPx(2))
+                    background = createRoundedDrawable(
+                        fillColor = Color.parseColor("#33FF5252"),
+                        cornerRadius = 4f
+                    )
+                }
+                addView(statusTextView)
+
+                onCreated(radioButton, statusTextView!!)
+            })
+
+            // Add "Set Key" button
+            addView(Button(context).apply {
+                text = "Set API Key"
+                textSize = 11f
+                setTextColor(ContextCompat.getColor(context, R.color.engine_groq))
+                setBackgroundColor(Color.TRANSPARENT)
+                setPadding(0, 0, 0, 0)
+                isAllCaps = false
+                layoutParams = LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT).apply {
+                    setMargins(context.dpToPx(40), 0, 0, 0)
+                }
+                setOnClickListener {
+                    onOpenSettings()
                 }
             })
         }
     }
 
-    /**
-     * Handle engine switch toggle
-     */
-    private fun handleEngineSwitch(engineCode: String, isChecked: Boolean) {
-        if (isChecked) {
-            // Turn off other switches
-            when (engineCode) {
-                AppConstants.STT_ENGINE_ANDROID -> {
-                    groqSwitch?.isChecked = false
-                    geminiSwitch?.isChecked = false
-                }
-                AppConstants.STT_ENGINE_GROQ -> {
-                    androidSwitch?.isChecked = false
-                    geminiSwitch?.isChecked = false
-                }
-                AppConstants.STT_ENGINE_GEMINI -> {
-                    androidSwitch?.isChecked = false
-                    groqSwitch?.isChecked = false
-                }
-            }
-            onEngineChange(engineCode)
-        } else {
-            // Re-check if trying to turn off (must have one selected)
-            when (engineCode) {
-                AppConstants.STT_ENGINE_ANDROID -> androidSwitch?.isChecked = true
-                AppConstants.STT_ENGINE_GROQ -> groqSwitch?.isChecked = true
-                AppConstants.STT_ENGINE_GEMINI -> geminiSwitch?.isChecked = true
-            }
+    private fun handleEngineSelection(checkedId: Int) {
+        // Find which radio button was selected
+        val androidId = androidRadio?.id ?: -1
+        val groqId = groqRadio?.id ?: -1
+        val geminiId = geminiRadio?.id ?: -1
+
+        when (checkedId) {
+            androidId -> onEngineChange(AppConstants.STT_ENGINE_ANDROID)
+            groqId -> onEngineChange(AppConstants.STT_ENGINE_GROQ)
+            geminiId -> onEngineChange(AppConstants.STT_ENGINE_GEMINI)
         }
     }
 
-    /**
-     * Update existing view elements
-     */
     private fun updateExistingView(state: KeyboardUiState) {
-        // Update active banner
-        activeBanner?.background = createRoundedDrawable(
-            fillColor = getEngineColorDark(state.sttEngine),
-            cornerRadius = 8f
-        )
-        activeBannerIcon?.text = getEngineEmoji(state.sttEngine)
-        activeBannerText?.text = if (state.isRecording) {
-            "🔴 Recording with ${getEngineName(state.sttEngine)}..."
-        } else {
-            "${getEngineName(state.sttEngine)} - READY"
+        // Update radio buttons (without triggering listener)
+        val radioGroup = (getChildAt(1) as? LinearLayout)?.getChildAt(1) as? RadioGroup
+
+        radioGroup?.setOnCheckedChangeListener(null)
+
+        androidRadio?.isChecked = state.isUsingAndroidStt
+        groqRadio?.isChecked = state.isUsingGroqStt
+        geminiRadio?.isChecked = state.isUsingGeminiStt
+
+        radioGroup?.setOnCheckedChangeListener { _, checkedId ->
+            handleEngineSelection(checkedId)
         }
-
-        // Update engine cards
-        updateCardBackground(androidCard, state.isUsingAndroidStt, ContextCompat.getColor(context, R.color.engine_android))
-        updateCardBackground(groqCard, state.isUsingGroqStt, ContextCompat.getColor(context, R.color.engine_groq))
-        updateCardBackground(geminiCard, state.isUsingGeminiStt, ContextCompat.getColor(context, R.color.engine_gemini))
-
-        // Update switches (without triggering listeners)
-        androidSwitch?.setOnCheckedChangeListener(null)
-        groqSwitch?.setOnCheckedChangeListener(null)
-        geminiSwitch?.setOnCheckedChangeListener(null)
-
-        androidSwitch?.isChecked = state.isUsingAndroidStt
-        groqSwitch?.isChecked = state.isUsingGroqStt
-        geminiSwitch?.isChecked = state.isUsingGeminiStt
-
-        androidSwitch?.setOnCheckedChangeListener { _, isChecked -> handleEngineSwitch(AppConstants.STT_ENGINE_ANDROID, isChecked) }
-        groqSwitch?.setOnCheckedChangeListener { _, isChecked -> handleEngineSwitch(AppConstants.STT_ENGINE_GROQ, isChecked) }
-        geminiSwitch?.setOnCheckedChangeListener { _, isChecked -> handleEngineSwitch(AppConstants.STT_ENGINE_GEMINI, isChecked) }
 
         // Update status text
         statusText?.text = getStatusMessage(state)
 
-        // Update mic button
+        // Update mic button color
         updateMicButton(state)
 
-        // Update result card visibility and content
+        // Update result card
         if (state.showResultCard && state.resultTextToShow != null) {
             resultText?.text = state.resultTextToShow
             resultCard?.visibility = View.VISIBLE
@@ -394,62 +336,22 @@ class VoiceInputView(
         }
     }
 
-    /**
-     * Update card background based on selection state
-     */
-    private fun updateCardBackground(card: LinearLayout?, isSelected: Boolean, engineColor: Int) {
-        card?.apply {
-            if (isSelected) {
-                background = createRoundedDrawableWithBorder(
-                    fillColor = ContextCompat.getColor(context, R.color.card_selected),
-                    borderColor = engineColor,
-                    borderWidth = 2f,
-                    cornerRadius = 8f
-                )
-            } else {
-                background = createRoundedDrawable(
-                    fillColor = ContextCompat.getColor(context, R.color.card_background),
-                    cornerRadius = 8f
-                )
-            }
-        }
-    }
-
-    /**
-     * Create the microphone button with engine indicator
-     */
     private fun createMicButton(state: KeyboardUiState): FrameLayout {
         return FrameLayout(context).apply {
             layoutParams = LayoutParams(
                 context.dpToPx(80),
-                context.dpToPx(90)
+                context.dpToPx(80)
             ).apply {
-                setMargins(0, context.dpToPx(8), 0, context.dpToPx(8))
+                setMargins(0, context.dpToPx(12), 0, context.dpToPx(12))
             }
 
-            // Engine color ring
-            addView(View(context).apply {
-                layoutParams = FrameLayout.LayoutParams(
-                    context.dpToPx(72),
-                    context.dpToPx(72),
-                    Gravity.CENTER
-                )
-                background = createRoundedDrawable(
-                    fillColor = Color.TRANSPARENT,
-                    strokeColor = getEngineColor(state.sttEngine),
-                    strokeWidth = 4f,
-                    cornerRadius = 36f
-                )
-                micEngineIndicator = this
-            })
-
-            // Mic icon container
+            // Background circle with engine color
             addView(LinearLayout(context).apply {
                 orientation = VERTICAL
                 gravity = Gravity.CENTER
                 layoutParams = FrameLayout.LayoutParams(
-                    context.dpToPx(64),
-                    context.dpToPx(64),
+                    context.dpToPx(72),
+                    context.dpToPx(72),
                     Gravity.CENTER
                 )
                 background = createRoundedDrawable(
@@ -458,15 +360,14 @@ class VoiceInputView(
                     } else {
                         getEngineColor(state.sttEngine)
                     },
-                    cornerRadius = 32f
+                    cornerRadius = 36f
                 )
 
-                micIcon = TextView(context).apply {
+                addView(TextView(context).apply {
                     text = "🎤"
-                    textSize = 28f
+                    textSize = 32f
                     gravity = Gravity.CENTER
-                }
-                addView(micIcon)
+                })
 
                 setOnClickListener {
                     if (ActivityCompat.checkSelfPermission(
@@ -479,47 +380,20 @@ class VoiceInputView(
                     }
                 }
             })
-
-            // Engine indicator dot
-            addView(View(context).apply {
-                layoutParams = FrameLayout.LayoutParams(
-                    context.dpToPx(12),
-                    context.dpToPx(12),
-                    Gravity.CENTER_HORIZONTAL or Gravity.BOTTOM
-                )
-                background = createRoundedDrawable(
-                    fillColor = getEngineColor(state.sttEngine),
-                    cornerRadius = 6f
-                )
-            })
         }
     }
 
-    /**
-     * Update mic button appearance
-     */
     private fun updateMicButton(state: KeyboardUiState) {
-        micEngineIndicator?.background = createRoundedDrawable(
-            fillColor = Color.TRANSPARENT,
-            strokeColor = getEngineColor(state.sttEngine),
-            strokeWidth = if (state.isRecording) 6f else 4f,
-            cornerRadius = 36f
-        )
-
-        // Update button background
-        (micButton?.getChildAt(1) as? LinearLayout)?.background = createRoundedDrawable(
+        (micButton?.getChildAt(0) as? LinearLayout)?.background = createRoundedDrawable(
             fillColor = if (state.isRecording) {
                 ContextCompat.getColor(context, R.color.recording_active)
             } else {
                 getEngineColor(state.sttEngine)
             },
-            cornerRadius = 32f
+            cornerRadius = 36f
         )
     }
 
-    /**
-     * Create language switcher chips
-     */
     private fun createLanguageSwitcher(state: KeyboardUiState): LinearLayout {
         return LinearLayout(context).apply {
             orientation = HORIZONTAL
@@ -547,33 +421,23 @@ class VoiceInputView(
         }
     }
 
-    /**
-     * Create the status text view
-     */
     private fun createStatusText(state: KeyboardUiState): TextView {
         return TextView(context).apply {
             text = getStatusMessage(state)
             setTextColor(ContextCompat.getColor(context, R.color.text_secondary))
             textSize = 12f
             gravity = Gravity.CENTER
-            setPadding(0, context.dpToPx(4), 0, context.dpToPx(4))
         }
     }
 
-    /**
-     * Get status message based on state
-     */
     private fun getStatusMessage(state: KeyboardUiState): String {
         return when {
             state.isRecording -> "🔴 Recording with ${getEngineName(state.sttEngine)}..."
             state.errorMessage != null -> "❌ ${state.errorMessage}"
-            else -> "${getEngineEmoji(state.sttEngine)} ${getEngineName(state.sttEngine)} ready - Tap mic to speak"
+            else -> "${getEngineEmoji(state.sttEngine)} ${getEngineName(state.sttEngine)} ready - Tap mic"
         }
     }
 
-    /**
-     * Create the result card
-     */
     private fun createResultCard(): LinearLayout {
         return LinearLayout(context).apply {
             orientation = VERTICAL
@@ -591,7 +455,7 @@ class VoiceInputView(
                 LayoutParams.MATCH_PARENT,
                 LayoutParams.WRAP_CONTENT
             ).apply {
-                setMargins(0, context.dpToPx(12), 0, 0)
+                setMargins(0, context.dpToPx(8), 0, 0)
             }
             visibility = View.GONE
 
@@ -626,9 +490,6 @@ class VoiceInputView(
         }
     }
 
-    /**
-     * Create a chip button
-     */
     private fun createChip(
         text: String,
         isSelected: Boolean,
@@ -639,7 +500,7 @@ class VoiceInputView(
             textSize = 12f
             setTextColor(if (isSelected) Color.WHITE else ContextCompat.getColor(context, R.color.text_secondary))
             background = createRoundedDrawable(
-                fillColor = if (isSelected) getEngineColor(AppConstants.STT_ENGINE_ANDROID) else ContextCompat.getColor(context, R.color.card_background),
+                fillColor = if (isSelected) ContextCompat.getColor(context, R.color.primary) else ContextCompat.getColor(context, R.color.card_background),
                 cornerRadius = 16f
             )
             setPadding(
@@ -653,13 +514,12 @@ class VoiceInputView(
         }
     }
 
-    // ==================== Helper Methods ====================
-
+    // Helpers
     private fun getEngineName(engineCode: String): String {
         return when (engineCode) {
-            AppConstants.STT_ENGINE_ANDROID -> "Android (Offline)"
-            AppConstants.STT_ENGINE_GROQ -> "Groq (Online)"
-            AppConstants.STT_ENGINE_GEMINI -> "Gemini (Live)"
+            AppConstants.STT_ENGINE_ANDROID -> "Android"
+            AppConstants.STT_ENGINE_GROQ -> "Groq"
+            AppConstants.STT_ENGINE_GEMINI -> "Gemini"
             else -> "Unknown"
         }
     }
@@ -682,40 +542,13 @@ class VoiceInputView(
         }
     }
 
-    private fun getEngineColorDark(engineCode: String): Int {
-        return when (engineCode) {
-            AppConstants.STT_ENGINE_ANDROID -> ContextCompat.getColor(context, R.color.engine_android_dark)
-            AppConstants.STT_ENGINE_GROQ -> ContextCompat.getColor(context, R.color.engine_groq_dark)
-            AppConstants.STT_ENGINE_GEMINI -> ContextCompat.getColor(context, R.color.engine_gemini_dark)
-            else -> Color.GRAY
-        }
-    }
-
     private fun createRoundedDrawable(
         fillColor: Int,
-        strokeColor: Int = Color.TRANSPARENT,
-        strokeWidth: Float = 0f,
         cornerRadius: Float = 8f
     ): GradientDrawable {
         return GradientDrawable().apply {
-            this.setColor(fillColor)
+            setColor(fillColor)
             this.cornerRadius = context.dpToPx(cornerRadius.toInt()).toFloat()
-            if (strokeWidth > 0 && strokeColor != Color.TRANSPARENT) {
-                this.setStroke(context.dpToPx(strokeWidth.toInt()), strokeColor)
-            }
-        }
-    }
-
-    private fun createRoundedDrawableWithBorder(
-        fillColor: Int,
-        borderColor: Int,
-        borderWidth: Float,
-        cornerRadius: Float
-    ): GradientDrawable {
-        return GradientDrawable().apply {
-            this.setColor(fillColor)
-            this.cornerRadius = context.dpToPx(cornerRadius.toInt()).toFloat()
-            this.setStroke(context.dpToPx(borderWidth.toInt()), borderColor)
         }
     }
 
@@ -725,14 +558,16 @@ class VoiceInputView(
             onMicClick: () -> Unit,
             onEngineChange: (String) -> Unit,
             onLanguageChange: (Language) -> Unit,
-            onInsertText: (String) -> Unit
+            onInsertText: (String) -> Unit,
+            onOpenSettings: () -> Unit = {}
         ): VoiceInputView {
             return VoiceInputView(
                 context,
                 onMicClick,
                 onEngineChange,
                 onLanguageChange,
-                onInsertText
+                onInsertText,
+                onOpenSettings
             )
         }
     }
