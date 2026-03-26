@@ -37,7 +37,7 @@ object AppConstants {
     const val PANEL_EMOJI = "emoji"
     
     // Audio Recording
-    const val AUDIO_FILE_EXTENSION = ".3gp"
+    const val AUDIO_FILE_EXTENSION = ".m4a"
     const val MAX_TEXT_LENGTH_FOR_TRANSLATION = 5000
     
     // SharedPreferences Keys

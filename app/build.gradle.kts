@@ -12,8 +12,8 @@ android {
         applicationId = "com.aikeyboard"
         minSdk = 26
         targetSdk = 34
-        versionCode = 42
-        versionName = "3.10.0"
+        versionCode = 43
+        versionName = "3.11.0"
     }
 
     signingConfigs {
