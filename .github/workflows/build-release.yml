@@ -74,7 +74,17 @@ jobs:
         tag_name: ${{ steps.version.outputs.tag }}
         name: AI Voice Keyboard ${{ steps.version.outputs.tag }}
         body: |
-          ## 🎤 AI Voice Keyboard v3.2.0
+          ## 🎤 AI Voice Keyboard v3.3.0
+          
+          ### ✨ Improved Voice Section UI
+          - **Active Engine Banner** - Shows currently selected engine with color
+          - **Engine Selection Cards** - Beautiful cards with ON/OFF switches
+          - **Color-coded Engines**:
+            - 🟢 Android (Offline) - Green
+            - 🔵 Groq (Online) - Blue
+            - 🟣 Gemini (Live) - Purple
+          - **Visual Mic Button** - Shows engine color indicator
+          - **Enhanced Status Text** - Always shows active engine name
           
           ### 🎯 3 STT Engine Options
           - ✅ **Android (Offline)** - Free, works without internet
