@@ -18,9 +18,9 @@ import com.aikeyboard.core.constants.AppConstants
 import com.aikeyboard.core.extension.dpToPx
 import com.aikeyboard.core.util.AudioRecorder
 import com.aikeyboard.data.local.PreferencesManager
+import com.aikeyboard.data.remote.api.ApiTranscriptionResult
 import com.aikeyboard.data.remote.api.GeminiLiveApi
 import com.aikeyboard.data.remote.api.GroqWhisperApi
-import com.aikeyboard.data.remote.api.TranscriptionResult
 import com.aikeyboard.data.remote.api.ZAiApi
 import com.aikeyboard.domain.model.Language
 import com.aikeyboard.presentation.keyboard.view.EmojiView
@@ -602,7 +602,7 @@ class AiKeyboardService : InputMethodService() {
     /**
      * Handle transcription result with detailed error handling
      */
-    private fun handleTranscriptionResult(result: TranscriptionResult) {
+    private fun handleTranscriptionResult(result: ApiTranscriptionResult) {
         if (result.isSuccess && result.text != null) {
             showResult(result.text)
         } else {

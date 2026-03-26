@@ -42,23 +42,23 @@ class GeminiLiveApi(private val context: Context) {
      *
      * @param audioFile The audio file to transcribe
      * @param language The language code (e.g., "en", "bn")
-     * @return TranscriptionResult with either success text or detailed error
+     * @return ApiTranscriptionResult with either success text or detailed error
      */
     suspend fun transcribe(
         audioFile: File,
         language: String
-    ): TranscriptionResult = withContext(Dispatchers.IO) {
+    ): ApiTranscriptionResult = withContext(Dispatchers.IO) {
         try {
             // Validate file
             if (!audioFile.exists()) {
-                return@withContext TranscriptionResult.error(
+                return@withContext ApiTranscriptionResult.error(
                     ErrorType.NO_AUDIO,
                     "Audio file not found",
                     "Path: ${audioFile.absolutePath}"
                 )
             }
             if (audioFile.length() == 0L) {
-                return@withContext TranscriptionResult.error(
+                return@withContext ApiTranscriptionResult.error(
                     ErrorType.NO_AUDIO,
                     "Audio file is empty",
                     "No audio data was recorded. Please check microphone permissions."
@@ -68,7 +68,7 @@ class GeminiLiveApi(private val context: Context) {
             // Check API key from PreferencesManager
             val apiKey = preferencesManager.getGeminiApiKey().trim()
             if (apiKey.isEmpty()) {
-                return@withContext TranscriptionResult.error(
+                return@withContext ApiTranscriptionResult.error(
                     ErrorType.AUTH,
                     "No API key configured",
                     "Please enter your Gemini API key in the voice settings.\n\nGet free key from: aistudio.google.com/apikey"
@@ -146,13 +146,13 @@ class GeminiLiveApi(private val context: Context) {
                             if (text.isNotBlank()) {
                                 Log.d(TAG, "========== GEMINI SUCCESS ==========")
                                 Log.d(TAG, "Result: ${text.take(100)}")
-                                return@withContext TranscriptionResult.success(text.trim())
+                                return@withContext ApiTranscriptionResult.success(text.trim())
                             }
                         }
                     }
 
                     Log.e(TAG, "Empty transcription result")
-                    TranscriptionResult.error(
+                    ApiTranscriptionResult.error(
                         ErrorType.EMPTY_RESULT,
                         "No speech detected",
                         "The audio was processed but no speech was detected. Please speak clearly and try again."
@@ -162,26 +162,26 @@ class GeminiLiveApi(private val context: Context) {
                     Log.e(TAG, "========== GEMINI FAILED ==========")
                     Log.e(TAG, "Error Type: $errorType")
                     Log.e(TAG, "Error Message: $errorMessage")
-                    TranscriptionResult.error(errorType, errorMessage, errorDetails)
+                    ApiTranscriptionResult.error(errorType, errorMessage, errorDetails)
                 }
             }
         } catch (e: SocketTimeoutException) {
             Log.e(TAG, "Request timed out", e)
-            TranscriptionResult.error(
+            ApiTranscriptionResult.error(
                 ErrorType.TIMEOUT,
                 "Request timed out",
                 "The API request took too long. Please check your internet connection and try again.\n\nTechnical: ${e.message}"
             )
         } catch (e: UnknownHostException) {
             Log.e(TAG, "No internet connection", e)
-            TranscriptionResult.error(
+            ApiTranscriptionResult.error(
                 ErrorType.NETWORK,
                 "No internet connection",
                 "Unable to connect to Gemini API. Please check your internet connection.\n\nTechnical: ${e.message}"
             )
         } catch (e: Exception) {
             Log.e(TAG, "Transcription failed", e)
-            TranscriptionResult.error(
+            ApiTranscriptionResult.error(
                 ErrorType.UNKNOWN,
                 "Transcription failed",
                 "An unexpected error occurred: ${e.message}\n\nException: ${e.javaClass.simpleName}"

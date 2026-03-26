@@ -23,9 +23,9 @@ import java.util.concurrent.TimeUnit
 private const val TAG = "GroqWhisperApi"
 
 /**
- * Result wrapper for transcription with detailed error info
+ * Result wrapper for transcription API with detailed error info
  */
-data class TranscriptionResult(
+data class ApiTranscriptionResult(
     val text: String? = null,
     val errorType: String? = null,
     val errorMessage: String? = null,
@@ -35,9 +35,9 @@ data class TranscriptionResult(
     val isFailure: Boolean get() = errorType != null
 
     companion object {
-        fun success(text: String) = TranscriptionResult(text = text)
+        fun success(text: String) = ApiTranscriptionResult(text = text)
         fun error(type: String, message: String, details: String? = null) =
-            TranscriptionResult(errorType = type, errorMessage = message, errorDetails = details)
+            ApiTranscriptionResult(errorType = type, errorMessage = message, errorDetails = details)
     }
 }
 
@@ -56,7 +56,7 @@ class GroqWhisperApi(private val context: Context) {
         .writeTimeout(ApiConstants.WRITE_TIMEOUT, TimeUnit.SECONDS)
         .addInterceptor { chain ->
             val request = chain.request().newBuilder()
-                .addHeader("User-Agent", "AIVoiceKeyboard/3.7.0 (Android ${android.os.Build.VERSION.RELEASE}; ${android.os.Build.MODEL})")
+                .addHeader("User-Agent", "AIVoiceKeyboard/3.8.0 (Android ${android.os.Build.VERSION.RELEASE}; ${android.os.Build.MODEL})")
                 .addHeader("Accept", "application/json")
                 .addHeader("Accept-Language", "en-US,en;q=0.9")
                 .addHeader("Cache-Control", "no-cache")
@@ -81,25 +81,23 @@ class GroqWhisperApi(private val context: Context) {
      *
      * @param audioFile The audio file to transcribe
      * @param language The language code (e.g., "en", "bn")
-     * @return TranscriptionResult with either success text or detailed error
+     * @return ApiTranscriptionResult with either success text or detailed error
      */
     suspend fun transcribe(
         audioFile: File,
         language: String
-    ): TranscriptionResult = withContext(Dispatchers.IO) {
+    ): ApiTranscriptionResult = withContext(Dispatchers.IO) {
         try {
             // Validate file
             if (!audioFile.exists()) {
-                Log.e(TAG, "Audio file does not exist: ${audioFile.absolutePath}")
-                return@withContext TranscriptionResult.error(
+                return@withContext ApiTranscriptionResult.error(
                     ErrorType.NO_AUDIO,
                     "Audio file not found",
                     "Path: ${audioFile.absolutePath}"
                 )
             }
             if (audioFile.length() == 0L) {
-                Log.e(TAG, "Audio file is empty")
-                return@withContext TranscriptionResult.error(
+                return@withContext ApiTranscriptionResult.error(
                     ErrorType.NO_AUDIO,
                     "Audio file is empty",
                     "No audio data was recorded. Please check microphone permissions."
@@ -109,8 +107,7 @@ class GroqWhisperApi(private val context: Context) {
             // Get API key from preferences
             val apiKey = getApiKey()
             if (apiKey.isEmpty()) {
-                Log.e(TAG, "No API key configured!")
-                return@withContext TranscriptionResult.error(
+                return@withContext ApiTranscriptionResult.error(
                     ErrorType.AUTH,
                     "No API key configured",
                     "Please enter your Groq API key in the voice settings."
@@ -163,10 +160,10 @@ class GroqWhisperApi(private val context: Context) {
                     if (transcriptionResponse.isValid) {
                         Log.d(TAG, "========== TRANSCRIBE SUCCESS ==========")
                         Log.d(TAG, "Result: ${transcriptionResponse.text}")
-                        TranscriptionResult.success(transcriptionResponse.text.trim())
+                        ApiTranscriptionResult.success(transcriptionResponse.text.trim())
                     } else {
                         Log.e(TAG, "Empty transcription result")
-                        TranscriptionResult.error(
+                        ApiTranscriptionResult.error(
                             ErrorType.EMPTY_RESULT,
                             "No speech detected",
                             "The audio was processed but no speech was detected. Please speak clearly and try again."
@@ -178,26 +175,26 @@ class GroqWhisperApi(private val context: Context) {
                     Log.e(TAG, "Error Type: $errorType")
                     Log.e(TAG, "Error Message: $errorMessage")
                     Log.e(TAG, "Full response: $bodyString")
-                    TranscriptionResult.error(errorType, errorMessage, errorDetails)
+                    ApiTranscriptionResult.error(errorType, errorMessage, errorDetails)
                 }
             }
         } catch (e: SocketTimeoutException) {
             Log.e(TAG, "Request timed out", e)
-            TranscriptionResult.error(
+            ApiTranscriptionResult.error(
                 ErrorType.TIMEOUT,
                 "Request timed out",
                 "The API request took too long. Please check your internet connection and try again.\n\nTechnical: ${e.message}"
             )
         } catch (e: UnknownHostException) {
             Log.e(TAG, "No internet connection", e)
-            TranscriptionResult.error(
+            ApiTranscriptionResult.error(
                 ErrorType.NETWORK,
                 "No internet connection",
                 "Unable to connect to Groq API. Please check your internet connection.\n\nTechnical: ${e.message}"
             )
         } catch (e: Exception) {
             Log.e(TAG, "Transcription failed", e)
-            TranscriptionResult.error(
+            ApiTranscriptionResult.error(
                 ErrorType.UNKNOWN,
                 "Transcription failed",
                 "An unexpected error occurred: ${e.message}\n\nException: ${e.javaClass.simpleName}"
