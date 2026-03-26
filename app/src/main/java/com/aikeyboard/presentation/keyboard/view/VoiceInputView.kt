@@ -262,7 +262,7 @@ class VoiceInputView(
 
                 // API Key status
                 statusTextView = TextView(context).apply {
-                    text = "❌ No Key"
+                    this@apply.text = "❌ No Key"
                     setTextColor(Color.parseColor("#FF5252"))
                     textSize = 10f
                     setPadding(context.dpToPx(4), context.dpToPx(2), context.dpToPx(4), context.dpToPx(2))
@@ -278,7 +278,7 @@ class VoiceInputView(
 
             // Add "Set Key" button
             addView(Button(context).apply {
-                text = "Set API Key"
+                this@apply.text = "Set API Key"
                 textSize = 11f
                 setTextColor(ContextCompat.getColor(context, R.color.engine_groq))
                 setBackgroundColor(Color.TRANSPARENT)
