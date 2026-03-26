@@ -9,9 +9,9 @@ object ApiConstants {
     const val GROQ_ENDPOINT = "https://api.groq.com/openai/v1"
     const val GROQ_WHISPER_MODEL = "whisper-large-v3"
     
-    // Gemini API Configuration  
-    const val GEMINI_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta"
-    const val GEMINI_MODEL = "gemini-1.5-flash"
+    // Gemini API Configuration
+    const val GEMINI_ENDPOINT = "https://generativelanguage.googleapis.com/v1alpha"
+    const val GEMINI_MODEL = "gemini-2.5-flash-native-audio-preview-12-2025"
     
     // Z-AI API Configuration  
     const val ZAI_ENDPOINT = "https://api.z.ai/api/paas/v4"
