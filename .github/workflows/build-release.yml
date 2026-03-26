@@ -74,37 +74,38 @@ jobs:
         tag_name: ${{ steps.version.outputs.tag }}
         name: AI Voice Keyboard ${{ steps.version.outputs.tag }}
         body: |
-          ## 🎤 AI Voice Keyboard v3.5.0
+          ## 🎤 AI Voice Keyboard v3.6.0
           
-          ### ✨ Complete Voice Section Redesign
+          ### ✨ Fixed Voice Section Issues
           
-          **NEW: Proper Engine Selection**
-          - Radio-style selection - ONLY ONE engine at a time
-          - Clear visual feedback for selected engine
-          - Selection persists between sessions
+          **Better API Key Handling:**
+          - Improved API key input field with proper Save button
+          - API key status now shows "✓ Ready" when saved
+          - Better error messages and feedback
           
-          **NEW: Inline API Key Input**
-          - Enter API key directly in the voice panel
-          - No need to go to Settings
-          - Keys are saved automatically
+          **Improved UI:**
+          - Larger, more visible engine cards
+          - Clear radio-style selection indicator
+          - Better visual feedback for selected engine
           
-          **Engine Cards:**
+          **Debug Logging:**
+          - Added logging to help diagnose issues
+          
+          ### 🎯 3 STT Engines
           - 🟢 **Android (Offline)** - Free, no API key needed
           - 🔵 **Groq (Online)** - Fast & accurate, needs API key
           - 🟣 **Gemini (Live)** - Real-time streaming, needs API key
           
-          ### 🔑 How to Use
+          ### How to Use
           1. Tap on an engine card to select
-          2. For Groq/Gemini: Enter API key when prompted
+          2. For Groq/Gemini: Enter API key and tap Save
           3. Tap the 🎤 mic button to start recording
-          4. Tap "Insert Text" to use the result
+          4. Speak and tap mic again to stop
+          5. Tap "Insert Text" to use the result
           
           ### Get API Keys
           - Groq: https://console.groq.com/keys
           - Gemini: https://aistudio.google.com/apikey
-          
-          ### 🌐 Translation
-          - English ↔ বাংলা translation included
         files: apk/*.apk
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

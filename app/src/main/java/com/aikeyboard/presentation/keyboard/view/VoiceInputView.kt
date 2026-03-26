@@ -19,13 +19,8 @@ import com.aikeyboard.presentation.keyboard.VoiceUiState
 
 /**
  * Voice Input View - Main voice typing panel
- *
- * Shows 3 engine options (Android, Groq, Gemini) with proper selection
- * and API key input functionality.
  */
-class VoiceInputView(
-    context: Context
-) : LinearLayout(context) {
+class VoiceInputView(context: Context) : LinearLayout(context) {
 
     // Callbacks
     var onEngineSelected: ((String) -> Unit)? = null
@@ -34,18 +29,18 @@ class VoiceInputView(
     var onLanguageChanged: ((Language) -> Unit)? = null
     var onInsertText: ((String) -> Unit)? = null
 
-    // Engine cards
-    private var androidCard: EngineCardView
-    private var groqCard: EngineCardView
-    private var geminiCard: EngineCardView
+    // Engine cards - initialized in init block
+    private val androidCard: EngineCardView
+    private val groqCard: EngineCardView
+    private val geminiCard: EngineCardView
 
     // Other UI components
-    private lateinit var micButton: FrameLayout
-    private lateinit var statusText: TextView
-    private lateinit var resultCard: LinearLayout
-    private lateinit var resultTextView: TextView
-    private lateinit var englishButton: Button
-    private lateinit var bengaliButton: Button
+    private val micButton: FrameLayout
+    private val statusText: TextView
+    private val resultCard: LinearLayout
+    private val resultTextView: TextView
+    private val englishButton: Button
+    private val bengaliButton: Button
 
     // Current state
     private var currentState: VoiceUiState? = null
@@ -65,56 +60,76 @@ class VoiceInputView(
         addView(createTitle())
 
         // Engine cards container
-        addView(LinearLayout(context).apply {
+        val cardsContainer = LinearLayout(context).apply {
             orientation = VERTICAL
             layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply {
                 setMargins(0, context.dpToPx(8), 0, context.dpToPx(12))
             }
+        }
 
-            // Android card - no API key needed
-            androidCard = EngineCardView(
-                context = context,
-                engineCode = "android",
-                engineName = "Android (Offline)",
-                engineEmoji = "🟢",
-                description = "Free • Works without internet",
-                engineColor = ContextCompat.getColor(context, R.color.engine_android),
-                needsApiKey = false
-            )
-            androidCard.onSelected = { handleEngineSelection("android") }
-            addView(androidCard)
+        // Android card - no API key needed
+        androidCard = EngineCardView(
+            context = context,
+            engineCode = "android",
+            engineName = "Android (Offline)",
+            engineEmoji = "🟢",
+            description = "Free • Works without internet",
+            engineColor = ContextCompat.getColor(context, R.color.engine_android),
+            needsApiKey = false
+        )
+        androidCard.onSelected = { 
+            android.util.Log.d("VoiceInputView", "Android card clicked")
+            onEngineSelected?.invoke("android") 
+        }
+        cardsContainer.addView(androidCard)
 
-            // Groq card - needs API key
-            groqCard = EngineCardView(
-                context = context,
-                engineCode = "groq",
-                engineName = "Groq (Online)",
-                engineEmoji = "🔵",
-                description = "Fast & accurate transcription",
-                engineColor = ContextCompat.getColor(context, R.color.engine_groq),
-                needsApiKey = true
-            )
-            groqCard.onSelected = { handleEngineSelection("groq") }
-            groqCard.onApiKeyEntered = { key -> onApiKeyEntered?.invoke("groq", key) }
-            addView(groqCard)
+        // Groq card - needs API key
+        groqCard = EngineCardView(
+            context = context,
+            engineCode = "groq",
+            engineName = "Groq (Online)",
+            engineEmoji = "🔵",
+            description = "Fast & accurate transcription",
+            engineColor = ContextCompat.getColor(context, R.color.engine_groq),
+            needsApiKey = true
+        )
+        groqCard.onSelected = { 
+            android.util.Log.d("VoiceInputView", "Groq card clicked")
+            onEngineSelected?.invoke("groq") 
+        }
+        groqCard.onApiKeyEntered = { key -> 
+            android.util.Log.d("VoiceInputView", "Groq API key entered: ${key.take(10)}...")
+            onApiKeyEntered?.invoke("groq", key) 
+        }
+        cardsContainer.addView(groqCard)
 
-            // Gemini card - needs API key
-            geminiCard = EngineCardView(
-                context = context,
-                engineCode = "gemini",
-                engineName = "Gemini (Live)",
-                engineEmoji = "🟣",
-                description = "Real-time streaming transcription",
-                engineColor = ContextCompat.getColor(context, R.color.engine_gemini),
-                needsApiKey = true
-            )
-            geminiCard.onSelected = { handleEngineSelection("gemini") }
-            geminiCard.onApiKeyEntered = { key -> onApiKeyEntered?.invoke("gemini", key) }
-            addView(geminiCard)
-        })
+        // Gemini card - needs API key
+        geminiCard = EngineCardView(
+            context = context,
+            engineCode = "gemini",
+            engineName = "Gemini (Live)",
+            engineEmoji = "🟣",
+            description = "Real-time streaming transcription",
+            engineColor = ContextCompat.getColor(context, R.color.engine_gemini),
+            needsApiKey = true
+        )
+        geminiCard.onSelected = { 
+            android.util.Log.d("VoiceInputView", "Gemini card clicked")
+            onEngineSelected?.invoke("gemini") 
+        }
+        geminiCard.onApiKeyEntered = { key -> 
+            android.util.Log.d("VoiceInputView", "Gemini API key entered: ${key.take(10)}...")
+            onApiKeyEntered?.invoke("gemini", key) 
+        }
+        cardsContainer.addView(geminiCard)
+
+        addView(cardsContainer)
 
         // Language switcher
-        addView(createLanguageSwitcher())
+        val languageSwitcher = createLanguageSwitcher()
+        addView(languageSwitcher)
+        englishButton = languageSwitcher.findViewById(1)
+        bengaliButton = languageSwitcher.findViewById(2)
 
         // Mic button
         micButton = createMicButton()
@@ -126,13 +141,12 @@ class VoiceInputView(
 
         // Result card
         resultCard = createResultCard()
+        resultTextView = resultCard.findViewById(100)
         addView(resultCard)
     }
 
-    /**
-     * Update the view with new state
-     */
     fun updateState(state: VoiceUiState) {
+        android.util.Log.d("VoiceInputView", "updateState: engine=${state.selectedEngine}, groqStatus=${state.groqApiKeyStatus}, geminiStatus=${state.geminiApiKeyStatus}")
         currentState = state
 
         // Update engine cards
@@ -175,30 +189,17 @@ class VoiceInputView(
         }
     }
 
-    /**
-     * Handle engine selection with validation
-     */
-    private fun handleEngineSelection(engine: String) {
-        onEngineSelected?.invoke(engine)
-    }
-
-    /**
-     * Create title TextView
-     */
     private fun createTitle(): TextView {
         return TextView(context).apply {
             text = "🎤 Voice Typing"
             setTextColor(ContextCompat.getColor(context, R.color.text_primary))
-            textSize = 16f
+            textSize = 18f
             typeface = Typeface.DEFAULT_BOLD
             gravity = Gravity.CENTER
             setPadding(0, 0, 0, context.dpToPx(8))
         }
     }
 
-    /**
-     * Create language switcher
-     */
     private fun createLanguageSwitcher(): LinearLayout {
         return LinearLayout(context).apply {
             orientation = HORIZONTAL
@@ -207,33 +208,43 @@ class VoiceInputView(
                 setMargins(0, 0, 0, context.dpToPx(12))
             }
 
-            englishButton = createLanguageButton("English")
-            englishButton.setOnClickListener { onLanguageChanged?.invoke(Language.ENGLISH) }
+            englishButton = Button(context).apply {
+                id = 1
+                text = "English"
+                textSize = 12f
+                isAllCaps = false
+                setPadding(
+                    context.dpToPx(16),
+                    context.dpToPx(8),
+                    context.dpToPx(16),
+                    context.dpToPx(8)
+                )
+                background = createRoundedBackground(Color.parseColor("#252540"))
+                setTextColor(ContextCompat.getColor(context, R.color.text_secondary))
+                setOnClickListener { onLanguageChanged?.invoke(Language.ENGLISH) }
+            }
             addView(englishButton)
 
             addView(View(context).apply {
                 layoutParams = LayoutParams(context.dpToPx(16), 1)
             })
 
-            bengaliButton = createLanguageButton("বাংলা")
-            bengaliButton.setOnClickListener { onLanguageChanged?.invoke(Language.BENGALI) }
+            bengaliButton = Button(context).apply {
+                id = 2
+                text = "বাংলা"
+                textSize = 12f
+                isAllCaps = false
+                setPadding(
+                    context.dpToPx(16),
+                    context.dpToPx(8),
+                    context.dpToPx(16),
+                    context.dpToPx(8)
+                )
+                background = createRoundedBackground(Color.parseColor("#252540"))
+                setTextColor(ContextCompat.getColor(context, R.color.text_secondary))
+                setOnClickListener { onLanguageChanged?.invoke(Language.BENGALI) }
+            }
             addView(bengaliButton)
-        }
-    }
-
-    private fun createLanguageButton(text: String): Button {
-        return Button(context).apply {
-            this.text = text
-            textSize = 12f
-            isAllCaps = false
-            setPadding(
-                context.dpToPx(16),
-                context.dpToPx(8),
-                context.dpToPx(16),
-                context.dpToPx(8)
-            )
-            background = createRoundedBackground(Color.parseColor("#252540"))
-            setTextColor(ContextCompat.getColor(context, R.color.text_secondary))
         }
     }
 
@@ -251,9 +262,6 @@ class VoiceInputView(
         }
     }
 
-    /**
-     * Create mic button
-     */
     private fun createMicButton(): FrameLayout {
         return FrameLayout(context).apply {
             layoutParams = LayoutParams(context.dpToPx(80), context.dpToPx(80)).apply {
@@ -276,7 +284,7 @@ class VoiceInputView(
 
                 addView(TextView(context).apply {
                     text = "🎤"
-                    textSize = 28f
+                    textSize = 32f
                     gravity = Gravity.CENTER
                 })
 
@@ -308,21 +316,15 @@ class VoiceInputView(
         (micButton.getChildAt(0) as? LinearLayout)?.background = createRoundedBackground(color, 36f)
     }
 
-    /**
-     * Create status text
-     */
     private fun createStatusText(): TextView {
         return TextView(context).apply {
             text = "Select an engine and tap to speak"
             setTextColor(ContextCompat.getColor(context, R.color.text_secondary))
-            textSize = 12f
+            textSize = 13f
             gravity = Gravity.CENTER
         }
     }
 
-    /**
-     * Create result card
-     */
     private fun createResultCard(): LinearLayout {
         return LinearLayout(context).apply {
             orientation = VERTICAL
@@ -342,6 +344,7 @@ class VoiceInputView(
             }
 
             resultTextView = TextView(context).apply {
+                id = 100
                 text = ""
                 setTextColor(Color.WHITE)
                 textSize = 14f
@@ -369,7 +372,6 @@ class VoiceInputView(
         }
     }
 
-    // Helper
     private fun createRoundedBackground(color: Int, cornerRadiusDp: Float = 8f): GradientDrawable {
         return GradientDrawable().apply {
             setColor(color)
