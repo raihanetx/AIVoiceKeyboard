@@ -1,5 +1,6 @@
 package com.aikeyboard.data.repository
 
+import com.aikeyboard.data.remote.api.ApiTranscriptionResult
 import com.aikeyboard.data.remote.api.GeminiLiveApi
 import com.aikeyboard.data.remote.api.GroqWhisperApi
 import com.aikeyboard.domain.model.AudioData
@@ -18,7 +19,7 @@ class TranscriptionRepositoryImpl(
 
     override suspend fun transcribe(audioData: AudioData): Flow<TranscriptionResult> = flow {
         emit(TranscriptionResult.Loading)
-        
+
         if (!audioData.isValid) {
             emit(TranscriptionResult.Error("Invalid audio data"))
             return@flow
@@ -30,19 +31,16 @@ class TranscriptionRepositoryImpl(
             language = audioData.language
         )
 
-        result.fold(
-            onSuccess = { text ->
-                emit(TranscriptionResult.Success(
-                    text = text,
-                    language = audioData.language
-                ))
-            },
-            onFailure = { error ->
-                emit(TranscriptionResult.Error(
-                    message = error.message ?: "Transcription failed"
-                ))
-            }
-        )
+        if (result.isSuccess && result.text != null) {
+            emit(TranscriptionResult.Success(
+                text = result.text,
+                language = audioData.language
+            ))
+        } else {
+            emit(TranscriptionResult.Error(
+                message = result.errorMessage ?: "Transcription failed"
+            ))
+        }
     }
 
     override suspend fun isServiceAvailable(): Boolean {
