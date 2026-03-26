@@ -244,7 +244,7 @@ class AiKeyboardService : InputMethodService() {
         btnEnglish = voicePanel?.findViewById(R.id.btnEnglish)
         btnBengali = voicePanel?.findViewById(R.id.btnBengali)
         micButton = voicePanel?.findViewById(R.id.micButton)
-        micButtonBg = micButton?.getChildAt(0)
+        micButtonBg = (micButton as? ViewGroup)?.getChildAt(0)
         statusText = voicePanel?.findViewById(R.id.statusText)
         resultCard = voicePanel?.findViewById(R.id.resultCard)
         resultText = voicePanel?.findViewById(R.id.resultText)
