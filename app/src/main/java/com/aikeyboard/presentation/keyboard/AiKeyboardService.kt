@@ -32,7 +32,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
- * AI Voice Keyboard Input Method Service - Simplified with XML layouts
+ * AI Voice Keyboard - Simplified with XML layouts
  */
 class AiKeyboardService : InputMethodService() {
 
@@ -40,20 +40,15 @@ class AiKeyboardService : InputMethodService() {
         private const val TAG = "AiKeyboard"
     }
 
-    // Preferences
     private val preferencesManager: PreferencesManager by lazy { PreferencesManager.getInstance(this) }
-
-    // API clients
     private val groqWhisperApi: GroqWhisperApi by lazy { GroqWhisperApi.getInstance(this) }
     private val geminiLiveApi: GeminiLiveApi by lazy { GeminiLiveApi.getInstance(this) }
     private val zAiApi: ZAiApi by lazy { ZAiApi.instance }
 
-    // Voice recognition
     private var speechRecognizer: SpeechRecognizer? = null
     private var audioRecorder: AudioRecorder? = null
     private var isRecording = false
 
-    // Views
     private var mainLayout: LinearLayout? = null
     private var voicePanel: View? = null
 
@@ -87,24 +82,20 @@ class AiKeyboardService : InputMethodService() {
     private var resultText: TextView? = null
     private var btnInsertText: Button? = null
 
-    // Current state
     private var selectedEngine: String = "android"
     private var currentLanguage: Language = Language.ENGLISH
 
     override fun onCreate() {
         super.onCreate()
-        Log.d(TAG, "=== KEYBOARD SERVICE CREATED ===")
         audioRecorder = AudioRecorder(this)
     }
 
     override fun onCreateInputView(): View {
-        Log.d(TAG, "=== Creating keyboard view ===")
         return try {
             loadPreferences()
             mainLayout = createMainLayout()
             mainLayout!!
         } catch (e: Exception) {
-            Log.e(TAG, "Error creating keyboard view", e)
             createErrorView("Error: ${e.message}")
         }
     }
@@ -113,7 +104,6 @@ class AiKeyboardService : InputMethodService() {
         selectedEngine = preferencesManager.getSttEngine()
         val savedLanguage = preferencesManager.getLanguage()
         currentLanguage = if (savedLanguage == "bn") Language.BENGALI else Language.ENGLISH
-        Log.d(TAG, "Loaded - Engine: $selectedEngine, Language: $currentLanguage")
     }
 
     private fun createMainLayout(): LinearLayout {
@@ -124,7 +114,6 @@ class AiKeyboardService : InputMethodService() {
                 android.view.ViewGroup.LayoutParams.MATCH_PARENT,
                 android.view.ViewGroup.LayoutParams.WRAP_CONTENT
             )
-
             addView(createHeader())
             addView(createPanelContent("keyboard"))
             addView(createLanguageSwitch())
@@ -138,12 +127,7 @@ class AiKeyboardService : InputMethodService() {
             gravity = Gravity.CENTER
             setPadding(8, 10, 8, 10)
 
-            listOf(
-                "ABC" to "keyboard",
-                "🎤" to "voice",
-                "🌐" to "translate",
-                "😀" to "emoji"
-            ).forEach { (label, panel) ->
+            listOf("ABC" to "keyboard", "🎤" to "voice", "🌐" to "translate", "😀" to "emoji").forEach { (label, panel) ->
                 addView(Button(this@AiKeyboardService).apply {
                     text = label
                     setTextColor(Color.WHITE)
@@ -160,7 +144,6 @@ class AiKeyboardService : InputMethodService() {
     private fun switchPanel(panel: String) {
         mainLayout?.removeViewAt(1)
         mainLayout?.addView(createPanelContent(panel), 1)
-        Log.d(TAG, "Switched to panel: $panel")
     }
 
     private fun createPanelContent(panel: String): View {
@@ -172,8 +155,6 @@ class AiKeyboardService : InputMethodService() {
         }
     }
 
-    // ==================== KEYBOARD PANEL ====================
-
     private fun createKeyboardPanel(): LinearLayout {
         return LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -182,7 +163,6 @@ class AiKeyboardService : InputMethodService() {
             val inflater = LayoutInflater.from(context)
             val keyboardView = inflater.inflate(R.layout.keyboard_panel, this, false)
 
-            // Set up key listeners
             keyboardView.findViewById<Button>(R.id.btnBackspace)?.setOnClickListener {
                 currentInputConnection?.deleteSurroundingText(1, 0)
             }
@@ -196,7 +176,6 @@ class AiKeyboardService : InputMethodService() {
                 switchPanel("emoji")
             }
 
-            // Set up all letter buttons
             for (i in 0 until (keyboardView as ViewGroup).childCount) {
                 val row = keyboardView.getChildAt(i) as? ViewGroup ?: continue
                 for (j in 0 until row.childCount) {
@@ -209,18 +188,14 @@ class AiKeyboardService : InputMethodService() {
                     }
                 }
             }
-
             addView(keyboardView)
         }
     }
-
-    // ==================== VOICE PANEL ====================
 
     private fun createVoicePanel(): View {
         val inflater = LayoutInflater.from(this)
         voicePanel = inflater.inflate(R.layout.voice_panel, null)
 
-        // Find all views
         cardAndroid = voicePanel?.findViewById(R.id.cardAndroid)
         cardGroq = voicePanel?.findViewById(R.id.cardGroq)
         cardGemini = voicePanel?.findViewById(R.id.cardGemini)
@@ -244,32 +219,36 @@ class AiKeyboardService : InputMethodService() {
         btnEnglish = voicePanel?.findViewById(R.id.btnEnglish)
         btnBengali = voicePanel?.findViewById(R.id.btnBengali)
         micButton = voicePanel?.findViewById(R.id.micButton)
-        micButtonBg = (micButton as? ViewGroup)?.getChildAt(0)
+        micButtonBg = voicePanel?.findViewById(R.id.micButtonBg)
         statusText = voicePanel?.findViewById(R.id.statusText)
         resultCard = voicePanel?.findViewById(R.id.resultCard)
         resultText = voicePanel?.findViewById(R.id.resultText)
         btnInsertText = voicePanel?.findViewById(R.id.btnInsertText)
 
-        // Set up listeners
+        // Card clicks
         cardAndroid?.setOnClickListener { selectEngine("android") }
         cardGroq?.setOnClickListener { handleGroqClick() }
         cardGemini?.setOnClickListener { handleGeminiClick() }
 
+        // Save buttons
         btnSaveGroqKey?.setOnClickListener { saveGroqApiKey() }
         btnSaveGeminiKey?.setOnClickListener { saveGeminiApiKey() }
 
+        // Error buttons
         btnToggleDetails?.setOnClickListener {
             errorDetails?.visibility = if (errorDetails?.visibility == View.VISIBLE) View.GONE else View.VISIBLE
             btnToggleDetails?.text = if (errorDetails?.visibility == View.VISIBLE) "Hide" else "Details"
         }
-
         btnCopyError?.setOnClickListener { copyErrorToClipboard() }
 
+        // Language buttons
         btnEnglish?.setOnClickListener { selectLanguage(Language.ENGLISH) }
         btnBengali?.setOnClickListener { selectLanguage(Language.BENGALI) }
 
+        // Mic button
         micButton?.setOnClickListener { handleMicClick() }
 
+        // Insert text
         btnInsertText?.setOnClickListener {
             resultText?.text?.toString()?.let { text ->
                 if (text.isNotBlank()) {
@@ -279,7 +258,6 @@ class AiKeyboardService : InputMethodService() {
             }
         }
 
-        // Update UI based on current state
         updateEngineUI()
         updateLanguageUI()
         updateBadges()
@@ -292,49 +270,45 @@ class AiKeyboardService : InputMethodService() {
         preferencesManager.setSttEngine(engine)
         updateEngineUI()
         hideError()
+        hideApiKeyInputs()
         updateStatus()
-        Log.d(TAG, "Engine selected: $engine")
+        Log.d(TAG, "Selected: $engine")
     }
 
     private fun handleGroqClick() {
+        hideApiKeyInputs()
         if (preferencesManager.hasGroqApiKey()) {
             selectEngine("groq")
         } else {
-            showApiKeyInput("groq")
+            apiKeyGroqContainer?.visibility = View.VISIBLE
+            apiKeyGroqInput?.requestFocus()
         }
     }
 
     private fun handleGeminiClick() {
+        hideApiKeyInputs()
         if (preferencesManager.hasGeminiApiKey()) {
             selectEngine("gemini")
-        } else {
-            showApiKeyInput("gemini")
-        }
-    }
-
-    private fun showApiKeyInput(engine: String) {
-        // Hide both first
-        apiKeyGroqContainer?.visibility = View.GONE
-        apiKeyGeminiContainer?.visibility = View.GONE
-
-        // Show the requested one
-        if (engine == "groq") {
-            apiKeyGroqContainer?.visibility = View.VISIBLE
-            apiKeyGroqInput?.requestFocus()
         } else {
             apiKeyGeminiContainer?.visibility = View.VISIBLE
             apiKeyGeminiInput?.requestFocus()
         }
     }
 
+    private fun hideApiKeyInputs() {
+        apiKeyGroqContainer?.visibility = View.GONE
+        apiKeyGeminiContainer?.visibility = View.GONE
+    }
+
     private fun saveGroqApiKey() {
         val key = apiKeyGroqInput?.text?.toString()?.trim() ?: ""
         if (key.isEmpty()) {
-            showError("Invalid Input", "API Key cannot be empty", null)
+            showError("Invalid", "API Key cannot be empty", null)
             return
         }
         preferencesManager.setGroqApiKey(key)
         apiKeyGroqContainer?.visibility = View.GONE
+        apiKeyGroqInput?.setText("")
         updateBadges()
         selectEngine("groq")
         Toast.makeText(this, "Groq API Key saved!", Toast.LENGTH_SHORT).show()
@@ -343,18 +317,18 @@ class AiKeyboardService : InputMethodService() {
     private fun saveGeminiApiKey() {
         val key = apiKeyGeminiInput?.text?.toString()?.trim() ?: ""
         if (key.isEmpty()) {
-            showError("Invalid Input", "API Key cannot be empty", null)
+            showError("Invalid", "API Key cannot be empty", null)
             return
         }
         preferencesManager.setGeminiApiKey(key)
         apiKeyGeminiContainer?.visibility = View.GONE
+        apiKeyGeminiInput?.setText("")
         updateBadges()
         selectEngine("gemini")
         Toast.makeText(this, "Gemini API Key saved!", Toast.LENGTH_SHORT).show()
     }
 
     private fun updateEngineUI() {
-        // Reset all cards
         cardAndroid?.setBackgroundResource(R.drawable.engine_card_bg)
         cardGroq?.setBackgroundResource(R.drawable.engine_card_bg)
         cardGemini?.setBackgroundResource(R.drawable.engine_card_bg)
@@ -362,7 +336,6 @@ class AiKeyboardService : InputMethodService() {
         radioGroq?.setBackgroundResource(R.drawable.radio_unselected)
         radioGemini?.setBackgroundResource(R.drawable.radio_unselected)
 
-        // Set selected
         when (selectedEngine) {
             "android" -> {
                 cardAndroid?.setBackgroundResource(R.drawable.engine_card_selected_bg)
@@ -422,52 +395,44 @@ class AiKeyboardService : InputMethodService() {
 
     private fun updateStatus() {
         val msg = when (selectedEngine) {
-            "android" -> "🟢 Android ready - Tap mic to speak"
-            "groq" -> if (preferencesManager.hasGroqApiKey()) "🔵 Groq ready - Tap mic to speak" else "⚠️ Enter Groq API Key first"
-            "gemini" -> if (preferencesManager.hasGeminiApiKey()) "🟣 Gemini ready - Tap mic to speak" else "⚠️ Enter Gemini API Key first"
+            "android" -> "🟢 Tap mic to speak"
+            "groq" -> if (preferencesManager.hasGroqApiKey()) "🔵 Tap mic to speak" else "⚠️ Enter Groq API Key"
+            "gemini" -> if (preferencesManager.hasGeminiApiKey()) "🟣 Tap mic to speak" else "⚠️ Enter Gemini API Key"
             else -> "Select an engine"
         }
         statusText?.text = msg
     }
 
-    // ==================== MIC & RECORDING ====================
-
     private fun handleMicClick() {
-        if (isRecording) {
-            stopRecording()
-        } else {
-            startRecording()
-        }
+        if (isRecording) stopRecording() else startRecording()
     }
 
     private fun startRecording() {
-        // Check API key for Groq/Gemini
         when (selectedEngine) {
             "groq" -> {
                 if (!preferencesManager.hasGroqApiKey()) {
-                    showError("API Key Required", "Please enter your Groq API key first", null)
-                    showApiKeyInput("groq")
+                    showError("API Key Required", "Please enter Groq API key", null)
+                    apiKeyGroqContainer?.visibility = View.VISIBLE
                     return
                 }
             }
             "gemini" -> {
                 if (!preferencesManager.hasGeminiApiKey()) {
-                    showError("API Key Required", "Please enter your Gemini API key first", null)
-                    showApiKeyInput("gemini")
+                    showError("API Key Required", "Please enter Gemini API key", null)
+                    apiKeyGeminiContainer?.visibility = View.VISIBLE
                     return
                 }
             }
         }
 
-        // Check permission
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
-            showError("Permission Required", "Microphone permission is required", null)
+            showError("Permission", "Microphone permission required", null)
             return
         }
 
         isRecording = true
         micButtonBg?.setBackgroundResource(R.drawable.mic_btn_recording_bg)
-        statusText?.text = "🔴 Recording... Tap mic to stop"
+        statusText?.text = "🔴 Recording... Tap to stop"
         hideError()
         resultCard?.visibility = View.GONE
 
@@ -480,37 +445,26 @@ class AiKeyboardService : InputMethodService() {
 
     private fun startAndroidSpeechRecognizer() {
         if (!SpeechRecognizer.isRecognitionAvailable(this)) {
-            stopRecordingWithError("Not Available", "Speech recognition not available on this device", null)
+            stopRecordingWithError("Error", "Speech recognition not available", null)
             return
         }
 
         speechRecognizer = SpeechRecognizer.createSpeechRecognizer(this).apply {
             setRecognitionListener(object : RecognitionListener {
-                override fun onReadyForSpeech(params: Bundle?) {
-                    statusText?.text = "Listening... Speak now"
-                }
+                override fun onReadyForSpeech(params: Bundle?) { statusText?.text = "Listening..." }
                 override fun onBeginningOfSpeech() {}
                 override fun onRmsChanged(rmsdB: Float) {}
                 override fun onBufferReceived(buffer: ByteArray?) {}
-                override fun onEndOfSpeech() {
-                    statusText?.text = "Processing..."
-                }
-                override fun onError(error: Int) {
-                    stopRecordingWithError("Speech Error", getSpeechErrorText(error), null)
-                }
+                override fun onEndOfSpeech() { statusText?.text = "Processing..." }
+                override fun onError(error: Int) { stopRecordingWithError("Error", getSpeechErrorText(error), null) }
                 override fun onResults(results: Bundle?) {
                     val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
-                    if (!matches.isNullOrEmpty()) {
-                        showResult(matches[0])
-                    } else {
-                        stopRecordingWithError("No Speech", "No speech detected", null)
-                    }
+                    if (!matches.isNullOrEmpty()) showResult(matches[0])
+                    else stopRecordingWithError("No Speech", "Nothing detected", null)
                 }
                 override fun onPartialResults(partialResults: Bundle?) {
                     val matches = partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
-                    if (!matches.isNullOrEmpty()) {
-                        statusText?.text = matches[0]
-                    }
+                    if (!matches.isNullOrEmpty()) statusText?.text = matches[0]
                 }
                 override fun onEvent(eventType: Int, params: Bundle?) {}
             })
@@ -527,16 +481,14 @@ class AiKeyboardService : InputMethodService() {
     private fun startGroqRecording() {
         val audioFile = audioRecorder?.startRecording()
         if (audioFile == null) {
-            stopRecordingWithError("Recording Failed", "Could not start recording", null)
-            return
+            stopRecordingWithError("Error", "Could not start recording", null)
         }
     }
 
     private fun startGeminiRecording() {
         val audioFile = audioRecorder?.startRecording()
         if (audioFile == null) {
-            stopRecordingWithError("Recording Failed", "Could not start recording", null)
-            return
+            stopRecordingWithError("Error", "Could not start recording", null)
         }
     }
 
@@ -559,13 +511,11 @@ class AiKeyboardService : InputMethodService() {
                     } else {
                         groqWhisperApi.transcribe(audioFile, currentLanguage.code)
                     }
-                    withContext(Dispatchers.Main) {
-                        handleTranscriptionResult(result)
-                    }
+                    withContext(Dispatchers.Main) { handleTranscriptionResult(result) }
                     audioFile.delete()
                 }
             } else {
-                stopRecordingWithError("No Audio", "No audio was recorded", null)
+                stopRecordingWithError("Error", "No audio recorded", null)
             }
         }
     }
@@ -574,11 +524,7 @@ class AiKeyboardService : InputMethodService() {
         if (result.isSuccess && result.text != null) {
             showResult(result.text)
         } else {
-            stopRecordingWithError(
-                "${selectedEngine.replaceFirstChar { it.uppercase() }} Error",
-                result.errorMessage ?: "Transcription failed",
-                result.errorDetails
-            )
+            stopRecordingWithError("Error", result.errorMessage ?: "Failed", result.errorDetails)
         }
     }
 
@@ -596,7 +542,7 @@ class AiKeyboardService : InputMethodService() {
         updateEngineUI()
         resultText?.text = text
         resultCard?.visibility = View.VISIBLE
-        statusText?.text = "✓ Transcription complete"
+        statusText?.text = "✓ Done"
         hideError()
     }
 
@@ -612,8 +558,6 @@ class AiKeyboardService : InputMethodService() {
         }
     }
 
-    // ==================== ERROR DISPLAY ====================
-
     private fun showError(title: String, message: String, details: String?) {
         errorTitle?.text = "❌ $title"
         errorMessage?.text = message
@@ -628,24 +572,17 @@ class AiKeyboardService : InputMethodService() {
     }
 
     private fun copyErrorToClipboard() {
-        val title = errorTitle?.text ?: ""
-        val msg = errorMessage?.text ?: ""
-        val details = errorDetails?.text ?: ""
-
+        val text = "${errorTitle?.text}\n${errorMessage?.text}\n${errorDetails?.text}"
         val clipboard = getSystemService(CLIPBOARD_SERVICE) as ClipboardManager
-        val clip = ClipData.newPlainText("Error", "$title\n$msg\n$details")
-        clipboard.setPrimaryClip(clip)
-        Toast.makeText(this, "Error copied to clipboard!", Toast.LENGTH_SHORT).show()
+        clipboard.setPrimaryClip(ClipData.newPlainText("Error", text))
+        Toast.makeText(this, "Copied!", Toast.LENGTH_SHORT).show()
     }
-
-    // ==================== TRANSLATE PANEL ====================
 
     private fun createTranslatePanel(): LinearLayout {
         return LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(16, 12, 16, 12)
             setBackgroundColor(Color.parseColor("#1A1A2E"))
-
             addView(TextView(context).apply {
                 text = "🌐 Translate"
                 setTextColor(Color.WHITE)
@@ -655,15 +592,12 @@ class AiKeyboardService : InputMethodService() {
         }
     }
 
-    // ==================== EMOJI PANEL ====================
-
     private fun createEmojiPanel(): LinearLayout {
         return LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(8, 8, 8, 8)
             setBackgroundColor(Color.parseColor("#1A1A2E"))
             gravity = Gravity.CENTER
-
             val emojis = listOf("😀", "😂", "😍", "🥰", "😎", "🤔", "👍", "👎", "❤️", "🔥")
             addView(LinearLayout(context).apply {
                 orientation = LinearLayout.HORIZONTAL
@@ -673,16 +607,12 @@ class AiKeyboardService : InputMethodService() {
                         text = emoji
                         textSize = 24f
                         setBackgroundColor(Color.TRANSPARENT)
-                        setOnClickListener {
-                            currentInputConnection?.commitText(emoji, 1)
-                        }
+                        setOnClickListener { currentInputConnection?.commitText(emoji, 1) }
                     })
                 }
             })
         }
     }
-
-    // ==================== LANGUAGE SWITCH ====================
 
     private fun createLanguageSwitch(): LinearLayout {
         return LinearLayout(this).apply {
@@ -690,7 +620,6 @@ class AiKeyboardService : InputMethodService() {
             setBackgroundColor(Color.parseColor("#16213E"))
             gravity = Gravity.CENTER
             setPadding(8, 6, 8, 6)
-
             addView(Button(this@AiKeyboardService).apply {
                 text = "EN"
                 setTextColor(Color.WHITE)
@@ -718,7 +647,6 @@ class AiKeyboardService : InputMethodService() {
     }
 
     override fun onDestroy() {
-        Log.d(TAG, "=== SERVICE DESTROYED ===")
         speechRecognizer?.destroy()
         audioRecorder?.release()
         super.onDestroy()
