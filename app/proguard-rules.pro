@@ -1,6 +1,4 @@
 # Add project specific ProGuard rules here.
-# By default, the flags in this file are appended to flags specified
-# in /sdk/tools/proguard/proguard-android.txt
 
 # Keep OkHttp
 -dontwarn okhttp3.**
@@ -20,16 +18,11 @@
 -keep class * implements com.google.gson.JsonSerializer
 -keep class * implements com.google.gson.JsonDeserializer
 
-# Keep only necessary public APIs from app package
-# Don't keep API keys - let them be obfuscated
--keep class com.aikeyboard.keyboard.** { public *; }
--keep class com.aikeyboard.settings.** { public *; }
--keep class com.aikeyboard.voice.GeminiVoiceClient { public *; }
--keep class com.aikeyboard.translation.ZAiClient { public *; }
--keep class com.aikeyboard.ui.theme.** { *; }
+# Keep InputMethodService
+-keep class com.aikeyboard.presentation.keyboard.AiKeyboardService { *; }
 
-# Obfuscate the Application class but keep it for manifest
--keep class com.aikeyboard.AiKeyboardApp { public <init>(); }
+# Keep DataStore
+-keep class androidx.datastore.** { *; }
 
 # Keep Kotlin coroutines
 -keepclassmembers class kotlinx.coroutines.** {
@@ -37,10 +30,6 @@
 }
 -keepnames class kotlinx.coroutines.internal.MainDispatcherFactory {}
 -keepnames class kotlinx.coroutines.CoroutineExceptionHandler {}
-
-# Keep Compose
--keep class androidx.compose.** { *; }
--dontwarn androidx.compose.**
 
 # Remove logging in release
 -assumenosideeffects class android.util.Log {
