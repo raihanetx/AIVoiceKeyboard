@@ -1,7 +1,6 @@
 package com.aikeyboard.presentation.keyboard
 
 import android.Manifest
-import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Color
 import android.inputmethodservice.InputMethodService
@@ -14,7 +13,7 @@ import android.view.Gravity
 import android.view.View
 import android.widget.*
 import androidx.core.app.ActivityCompat
-import com.aikeyboard.core.constants.ApiConstants
+import com.aikeyboard.R
 import com.aikeyboard.core.constants.AppConstants
 import com.aikeyboard.core.extension.dpToPx
 import com.aikeyboard.core.util.AudioRecorder
@@ -33,13 +32,9 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.io.File
 
 /**
  * AI Voice Keyboard Input Method Service
- * 
- * Main keyboard service that handles text input, voice recognition,
- * and translation features.
  */
 class AiKeyboardService : InputMethodService() {
 
@@ -47,27 +42,25 @@ class AiKeyboardService : InputMethodService() {
         private const val TAG = "AiKeyboard"
     }
 
-    // Controller for state management
-    private val controller = KeyboardController()
+    // Preferences
+    private val preferencesManager: PreferencesManager by lazy { PreferencesManager.getInstance(this) }
 
-    // Voice input view reference for updates
-    private var voiceInputView: VoiceInputView? = null
+    // API clients
+    private val groqWhisperApi: GroqWhisperApi by lazy { GroqWhisperApi.getInstance(this) }
+    private val geminiLiveApi: GeminiLiveApi by lazy { GeminiLiveApi.getInstance(this) }
+    private val zAiApi: ZAiApi by lazy { ZAiApi.instance }
 
     // Voice recognition
     private var speechRecognizer: SpeechRecognizer? = null
     private var audioRecorder: AudioRecorder? = null
     private var isRecording = false
 
-    // Preferences
-    private val preferencesManager: PreferencesManager by lazy { PreferencesManager.getInstance(this) }
-
-    // API clients - lazy initialized with context
-    private val groqWhisperApi: GroqWhisperApi by lazy { GroqWhisperApi.getInstance(this) }
-    private val geminiLiveApi: GeminiLiveApi by lazy { GeminiLiveApi.getInstance(this) }
-    private val zAiApi: ZAiApi by lazy { ZAiApi.instance }
-
     // Views
     private var mainLayout: LinearLayout? = null
+    private var voiceInputView: VoiceInputView? = null
+
+    // Current voice state
+    private var voiceState = VoiceUiState()
 
     override fun onCreate() {
         super.onCreate()
@@ -77,9 +70,8 @@ class AiKeyboardService : InputMethodService() {
 
     override fun onCreateInputView(): View {
         Log.d(TAG, "=== Creating keyboard view ===")
-        // Load saved preferences
-        loadPreferences()
         return try {
+            loadPreferences()
             mainLayout = createMainLayout()
             mainLayout!!
         } catch (e: Exception) {
@@ -89,19 +81,34 @@ class AiKeyboardService : InputMethodService() {
     }
 
     /**
-     * Load saved preferences into controller
+     * Load saved preferences into state
      */
     private fun loadPreferences() {
         val savedEngine = preferencesManager.getSttEngine()
         val savedLanguage = preferencesManager.getLanguage()
-        controller.setSttEngine(savedEngine)
-        controller.setLanguage(savedLanguage)
-        Log.d(TAG, "Loaded preferences - Engine: $savedEngine, Language: $savedLanguage")
+
+        voiceState = voiceState.copy(
+            selectedEngine = savedEngine,
+            currentLanguage = if (savedLanguage == "bn") Language.BENGALI else Language.ENGLISH,
+            groqApiKeyStatus = if (preferencesManager.hasGroqApiKey()) ApiKeyStatus.SAVED else ApiKeyStatus.NONE,
+            geminiApiKeyStatus = if (preferencesManager.hasGeminiApiKey()) ApiKeyStatus.SAVED else ApiKeyStatus.NONE,
+            statusMessage = getStatusMessage(savedEngine)
+        )
+        Log.d(TAG, "Loaded preferences - Engine: $savedEngine, GroqKey: ${voiceState.groqApiKeyStatus}, GeminiKey: ${voiceState.geminiApiKeyStatus}")
     }
 
     /**
-     * Create the main keyboard layout
+     * Get status message based on engine
      */
+    private fun getStatusMessage(engine: String): String {
+        return when (engine) {
+            "android" -> "🟢 Android ready - Tap mic to speak"
+            "groq" -> if (preferencesManager.hasGroqApiKey()) "🔵 Groq ready - Tap mic to speak" else "⚠️ Enter Groq API Key first"
+            "gemini" -> if (preferencesManager.hasGeminiApiKey()) "🟣 Gemini ready - Tap mic to speak" else "⚠️ Enter Gemini API Key first"
+            else -> "Select an engine"
+        }
+    }
+
     private fun createMainLayout(): LinearLayout {
         return LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -111,20 +118,12 @@ class AiKeyboardService : InputMethodService() {
                 android.view.ViewGroup.LayoutParams.WRAP_CONTENT
             )
 
-            // Add header
             addView(createHeader())
-
-            // Add content area based on current panel
-            addView(createPanelContent(controller.state.currentPanel))
-
-            // Add language switch
+            addView(createPanelContent(AppConstants.PANEL_KEYBOARD))
             addView(createLanguageSwitch())
         }
     }
 
-    /**
-     * Create the header with panel switcher
-     */
     private fun createHeader(): LinearLayout {
         return LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -132,22 +131,15 @@ class AiKeyboardService : InputMethodService() {
             gravity = Gravity.CENTER
             setPadding(8, 10, 8, 10)
 
-            val panels = listOf(
+            listOf(
                 "ABC" to AppConstants.PANEL_KEYBOARD,
                 "🎤" to AppConstants.PANEL_VOICE,
                 "🌐" to AppConstants.PANEL_TRANSLATE,
                 "😀" to AppConstants.PANEL_EMOJI
-            )
-
-            panels.forEach { (label, panel) ->
+            ).forEach { (label, panel) ->
                 addView(Button(this@AiKeyboardService).apply {
                     text = label
-                    setTextColor(
-                        if (controller.state.currentPanel == panel) 
-                            Color.parseColor("#4285F4") 
-                        else 
-                            Color.WHITE
-                    )
+                    setTextColor(Color.WHITE)
                     setBackgroundColor(Color.TRANSPARENT)
                     textSize = 14f
                     setAllCaps(false)
@@ -158,18 +150,12 @@ class AiKeyboardService : InputMethodService() {
         }
     }
 
-    /**
-     * Switch to a different panel
-     */
     private fun switchPanel(panel: String) {
-        controller.switchPanel(panel)
-        setInputView(onCreateInputView())
+        mainLayout?.removeViewAt(1)
+        mainLayout?.addView(createPanelContent(panel), 1)
         Log.d(TAG, "Switched to panel: $panel")
     }
 
-    /**
-     * Create content for the current panel
-     */
     private fun createPanelContent(panel: String): View {
         return when (panel) {
             AppConstants.PANEL_VOICE -> createVoicePanel()
@@ -191,53 +177,22 @@ class AiKeyboardService : InputMethodService() {
                 onKeyPress = { key -> handleKeyPress(key) },
                 onLongKeyPress = { key -> handleLongKeyPress(key) }
             )
-            keyboardView.updateState(controller.state)
             addView(keyboardView)
         }
     }
 
-    /**
-     * Handle key press
-     */
     private fun handleKeyPress(key: String) {
         when {
-            key == "⌫" -> {
-                controller.deleteLastChar()
-                currentInputConnection?.deleteSurroundingText(1, 0)
-            }
-            key == "Space" -> {
-                controller.appendText(" ")
-                currentInputConnection?.commitText(" ", 1)
-            }
-            key == "↵" -> {
-                currentInputConnection?.performEditorAction(
-                    android.view.inputmethod.EditorInfo.IME_ACTION_DONE
-                )
-            }
-            key == "⇧" -> {
-                controller.toggleCapsLock()
-                Toast.makeText(
-                    this,
-                    "CAPS: ${if (controller.state.capsLock) "ON" else "OFF"}",
-                    Toast.LENGTH_SHORT
-                ).show()
-            }
+            key == "⌫" -> currentInputConnection?.deleteSurroundingText(1, 0)
+            key == "Space" -> currentInputConnection?.commitText(" ", 1)
+            key == "↵" -> currentInputConnection?.performEditorAction(android.view.inputmethod.EditorInfo.IME_ACTION_DONE)
             key == "😊" -> switchPanel(AppConstants.PANEL_EMOJI)
-            key == "?123" -> { /* Could switch to number/symbol keyboard */ }
-            else -> {
-                val char = if (controller.state.capsLock) key.uppercase() else key
-                controller.appendText(char)
-                currentInputConnection?.commitText(char, 1)
-            }
+            else -> currentInputConnection?.commitText(key, 1)
         }
     }
 
-    /**
-     * Handle long key press
-     */
     private fun handleLongKeyPress(key: String) {
         if (key == "⌫") {
-            controller.clearText()
             currentInputConnection?.deleteSurroundingText(10000, 0)
         }
     }
@@ -251,66 +206,171 @@ class AiKeyboardService : InputMethodService() {
             setPadding(16, 16, 16, 16)
             gravity = Gravity.CENTER_HORIZONTAL
 
-            voiceInputView = VoiceInputView.create(
-                context = this@AiKeyboardService,
-                onMicClick = { toggleVoiceRecording() },
-                onEngineChange = { engine ->
-                    // Save and update engine
-                    preferencesManager.setSttEngine(engine)
-                    controller.setSttEngine(engine)
-                    // Refresh the view to show selection
-                    voiceInputView?.updateState(controller.state)
-                    Log.d(TAG, "Engine changed to: $engine")
-                },
-                onLanguageChange = { language ->
-                    controller.setLanguage(language)
-                    voiceInputView?.updateState(controller.state)
-                },
-                onInsertText = { text -> insertText(text) },
-                onOpenSettings = {
-                    // Open the Settings activity
-                    val intent = Intent(this@AiKeyboardService, com.aikeyboard.presentation.settings.MainActivity::class.java)
-                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    startActivity(intent)
-                }
-            )
-            voiceInputView?.updateState(controller.state)
+            voiceInputView = VoiceInputView.create(this@AiKeyboardService).apply {
+                onEngineSelected = { engine -> handleEngineSelection(engine) }
+                onApiKeyEntered = { engine, key -> handleApiKeyEntered(engine, key) }
+                onMicClicked = { handleMicClick() }
+                onLanguageChanged = { language -> handleLanguageChange(language) }
+                onInsertText = { text -> insertText(text) }
+            }
+            voiceInputView?.updateState(voiceState)
             addView(voiceInputView)
         }
     }
 
     /**
-     * Toggle voice recording
+     * Handle engine selection
      */
-    private fun toggleVoiceRecording() {
-        if (isRecording) {
-            stopVoiceRecording()
-        } else {
-            startVoiceRecording()
+    private fun handleEngineSelection(engine: String) {
+        Log.d(TAG, "Engine selected: $engine")
+
+        when (engine) {
+            "android" -> {
+                // Android doesn't need API key
+                selectEngine(engine)
+            }
+            "groq" -> {
+                if (preferencesManager.hasGroqApiKey()) {
+                    selectEngine(engine)
+                } else {
+                    // Show API key input
+                    voiceState = voiceState.copy(showApiKeyInputFor = "groq")
+                    voiceInputView?.updateState(voiceState)
+                }
+            }
+            "gemini" -> {
+                if (preferencesManager.hasGeminiApiKey()) {
+                    selectEngine(engine)
+                } else {
+                    // Show API key input
+                    voiceState = voiceState.copy(showApiKeyInputFor = "gemini")
+                    voiceInputView?.updateState(voiceState)
+                }
+            }
         }
     }
 
     /**
-     * Start voice recording
+     * Handle API key entered
      */
-    private fun startVoiceRecording() {
+    private fun handleApiKeyEntered(engine: String, apiKey: String) {
+        Log.d(TAG, "API key entered for: $engine")
+
+        if (apiKey.isBlank()) {
+            voiceState = voiceState.copy(errorMessage = "API Key cannot be empty")
+            voiceInputView?.updateState(voiceState)
+            return
+        }
+
+        // Save the key
+        when (engine) {
+            "groq" -> preferencesManager.setGroqApiKey(apiKey)
+            "gemini" -> preferencesManager.setGeminiApiKey(apiKey)
+        }
+
+        // Update state
+        voiceState = voiceState.copy(
+            showApiKeyInputFor = null,
+            errorMessage = null
+        )
+        if (engine == "groq") {
+            voiceState = voiceState.copy(groqApiKeyStatus = ApiKeyStatus.SAVED)
+        } else if (engine == "gemini") {
+            voiceState = voiceState.copy(geminiApiKeyStatus = ApiKeyStatus.SAVED)
+        }
+
+        // Select the engine
+        selectEngine(engine)
+
+        Toast.makeText(this, "$engine API Key saved!", Toast.LENGTH_SHORT).show()
+    }
+
+    /**
+     * Select an engine
+     */
+    private fun selectEngine(engine: String) {
+        preferencesManager.setSttEngine(engine)
+        voiceState = voiceState.copy(
+            selectedEngine = engine,
+            showApiKeyInputFor = null,
+            errorMessage = null,
+            statusMessage = getStatusMessage(engine)
+        )
+        voiceInputView?.updateState(voiceState)
+        Log.d(TAG, "Engine selected and saved: $engine")
+    }
+
+    /**
+     * Handle mic button click
+     */
+    private fun handleMicClick() {
+        if (isRecording) {
+            stopRecording()
+        } else {
+            startRecording()
+        }
+    }
+
+    /**
+     * Handle language change
+     */
+    private fun handleLanguageChange(language: Language) {
+        preferencesManager.setLanguage(language.code)
+        voiceState = voiceState.copy(currentLanguage = language)
+        voiceInputView?.updateState(voiceState)
+    }
+
+    /**
+     * Start recording
+     */
+    private fun startRecording() {
+        val engine = voiceState.selectedEngine
+
+        // Validate API key for Groq/Gemini
+        when (engine) {
+            "groq" -> {
+                if (!preferencesManager.hasGroqApiKey()) {
+                    voiceState = voiceState.copy(
+                        errorMessage = "Please enter Groq API Key first",
+                        showApiKeyInputFor = "groq"
+                    )
+                    voiceInputView?.updateState(voiceState)
+                    return
+                }
+            }
+            "gemini" -> {
+                if (!preferencesManager.hasGeminiApiKey()) {
+                    voiceState = voiceState.copy(
+                        errorMessage = "Please enter Gemini API Key first",
+                        showApiKeyInputFor = "gemini"
+                    )
+                    voiceInputView?.updateState(voiceState)
+                    return
+                }
+            }
+        }
+
         // Check permission
-        if (ActivityCompat.checkSelfPermission(
-                this,
-                Manifest.permission.RECORD_AUDIO
-            ) != PackageManager.PERMISSION_GRANTED
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)
+            != PackageManager.PERMISSION_GRANTED
         ) {
-            controller.setRecordingStatus(false, "Microphone permission required")
+            voiceState = voiceState.copy(errorMessage = "Microphone permission required")
+            voiceInputView?.updateState(voiceState)
             return
         }
 
         isRecording = true
-        controller.startRecording()
+        voiceState = voiceState.copy(
+            isRecording = true,
+            errorMessage = null,
+            statusMessage = "🔴 Recording with ${voiceState.getEngineDisplayName()}..."
+        )
+        voiceInputView?.updateState(voiceState)
 
-        when {
-            controller.state.isUsingAndroidStt -> startAndroidSpeechRecognizer()
-            controller.state.isUsingGeminiStt -> startGeminiRecording()
-            else -> startGroqRecording()
+        when (engine) {
+            "android" -> startAndroidSpeechRecognizer()
+            "groq" -> startGroqRecording()
+            "gemini" -> startGeminiRecording()
         }
     }
 
@@ -319,15 +379,15 @@ class AiKeyboardService : InputMethodService() {
      */
     private fun startAndroidSpeechRecognizer() {
         if (!SpeechRecognizer.isRecognitionAvailable(this)) {
-            controller.setRecordingStatus(false, "Speech recognition not available")
-            isRecording = false
+            stopRecordingWithError("Speech recognition not available")
             return
         }
 
         speechRecognizer = SpeechRecognizer.createSpeechRecognizer(this).apply {
             setRecognitionListener(object : RecognitionListener {
                 override fun onReadyForSpeech(params: Bundle?) {
-                    controller.setRecordingStatus(true, "Listening... Speak now")
+                    voiceState = voiceState.copy(statusMessage = "Listening... Speak now")
+                    voiceInputView?.updateState(voiceState)
                 }
 
                 override fun onBeginningOfSpeech() {}
@@ -335,35 +395,28 @@ class AiKeyboardService : InputMethodService() {
                 override fun onBufferReceived(buffer: ByteArray?) {}
 
                 override fun onEndOfSpeech() {
-                    controller.setRecordingStatus(false, "Processing...")
+                    voiceState = voiceState.copy(statusMessage = "Processing...")
+                    voiceInputView?.updateState(voiceState)
                 }
 
                 override fun onError(error: Int) {
-                    isRecording = false
-                    controller.setTranscriptionResult(
-                        TranscriptionResult.Error(getSpeechErrorText(error))
-                    )
+                    stopRecordingWithError(getSpeechErrorText(error))
                 }
 
                 override fun onResults(results: Bundle?) {
-                    isRecording = false
                     val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
                     if (!matches.isNullOrEmpty()) {
-                        controller.setTranscriptionResult(
-                            TranscriptionResult.Success(
-                                text = matches[0],
-                                language = controller.state.currentLanguage.code
-                            )
-                        )
+                        showResult(matches[0])
                     } else {
-                        controller.setRecordingStatus(false, "No speech detected")
+                        stopRecordingWithError("No speech detected")
                     }
                 }
 
                 override fun onPartialResults(partialResults: Bundle?) {
                     val matches = partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
                     if (!matches.isNullOrEmpty()) {
-                        controller.setRecordingStatus(true, matches[0])
+                        voiceState = voiceState.copy(statusMessage = matches[0])
+                        voiceInputView?.updateState(voiceState)
                     }
                 }
 
@@ -371,24 +424,99 @@ class AiKeyboardService : InputMethodService() {
             })
         }
 
-        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-            putExtra(
-                RecognizerIntent.EXTRA_LANGUAGE_MODEL,
-                RecognizerIntent.LANGUAGE_MODEL_FREE_FORM
-            )
-            putExtra(
-                RecognizerIntent.EXTRA_LANGUAGE,
-                controller.state.currentLanguage.localeCode
-            )
+        val intent = android.content.Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE, voiceState.currentLanguage.localeCode)
             putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
         }
 
         speechRecognizer?.startListening(intent)
     }
 
+    private fun startGroqRecording() {
+        val audioFile = audioRecorder?.startRecording()
+        if (audioFile == null) {
+            stopRecordingWithError("Failed to start recording")
+            return
+        }
+        voiceState = voiceState.copy(statusMessage = "🔵 Recording... Tap mic to stop")
+        voiceInputView?.updateState(voiceState)
+    }
+
+    private fun startGeminiRecording() {
+        val audioFile = audioRecorder?.startRecording()
+        if (audioFile == null) {
+            stopRecordingWithError("Failed to start recording")
+            return
+        }
+        voiceState = voiceState.copy(statusMessage = "🟣 Recording... Tap mic to stop")
+        voiceInputView?.updateState(voiceState)
+    }
+
     /**
-     * Get error text for speech recognizer error codes
+     * Stop recording
      */
+    private fun stopRecording() {
+        isRecording = false
+
+        if (voiceState.selectedEngine == "android") {
+            speechRecognizer?.stopListening()
+            speechRecognizer?.destroy()
+            speechRecognizer = null
+        } else {
+            val audioFile = audioRecorder?.stopRecording()
+
+            if (audioFile != null && audioFile.exists() && audioFile.length() > 0) {
+                voiceState = voiceState.copy(statusMessage = "Transcribing...")
+                voiceInputView?.updateState(voiceState)
+
+                CoroutineScope(Dispatchers.IO).launch {
+                    val result = if (voiceState.selectedEngine == "gemini") {
+                        geminiLiveApi.transcribe(audioFile, voiceState.currentLanguage.code)
+                    } else {
+                        groqWhisperApi.transcribe(audioFile, voiceState.currentLanguage.code)
+                    }
+
+                    withContext(Dispatchers.Main) {
+                        result.fold(
+                            onSuccess = { text -> showResult(text) },
+                            onFailure = { error -> stopRecordingWithError(error.message ?: "Transcription failed") }
+                        )
+                    }
+                    audioFile.delete()
+                }
+            } else {
+                stopRecordingWithError("No audio recorded")
+            }
+        }
+
+        voiceState = voiceState.copy(isRecording = false)
+        voiceInputView?.updateState(voiceState)
+    }
+
+    private fun stopRecordingWithError(message: String) {
+        isRecording = false
+        speechRecognizer?.destroy()
+        speechRecognizer = null
+        voiceState = voiceState.copy(
+            isRecording = false,
+            errorMessage = message,
+            statusMessage = getStatusMessage(voiceState.selectedEngine)
+        )
+        voiceInputView?.updateState(voiceState)
+    }
+
+    private fun showResult(text: String) {
+        isRecording = false
+        voiceState = voiceState.copy(
+            isRecording = false,
+            showResult = true,
+            resultText = text,
+            statusMessage = "✓ Transcription complete"
+        )
+        voiceInputView?.updateState(voiceState)
+    }
+
     private fun getSpeechErrorText(error: Int): String {
         return when (error) {
             SpeechRecognizer.ERROR_AUDIO -> "Audio error"
@@ -398,99 +526,6 @@ class AiKeyboardService : InputMethodService() {
             SpeechRecognizer.ERROR_NO_MATCH -> "No speech detected"
             SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "No speech detected"
             else -> "Error: $error"
-        }
-    }
-
-    /**
-     * Start Groq recording
-     */
-    private fun startGroqRecording() {
-        if (!preferencesManager.isGroqApiKeyConfigured()) {
-            controller.setRecordingStatus(false, "Groq API key not set. Go to Settings > API Keys")
-            isRecording = false
-            return
-        }
-
-        val audioFile = audioRecorder?.startRecording()
-        if (audioFile == null) {
-            controller.setRecordingStatus(false, "Recording failed")
-            isRecording = false
-            return
-        }
-
-        controller.setRecordingStatus(true, "Recording... Tap mic to stop")
-    }
-
-    /**
-     * Start Gemini recording
-     */
-    private fun startGeminiRecording() {
-        if (!preferencesManager.isGeminiApiKeyConfigured()) {
-            controller.setRecordingStatus(false, "Gemini API key not set. Go to Settings > API Keys")
-            isRecording = false
-            return
-        }
-
-        val audioFile = audioRecorder?.startRecording()
-        if (audioFile == null) {
-            controller.setRecordingStatus(false, "Recording failed")
-            isRecording = false
-            return
-        }
-
-        controller.setRecordingStatus(true, "Recording with Gemini... Tap mic to stop")
-    }
-
-    /**
-     * Stop voice recording
-     */
-    private fun stopVoiceRecording() {
-        isRecording = false
-
-        if (controller.state.isUsingAndroidStt) {
-            speechRecognizer?.stopListening()
-            speechRecognizer?.destroy()
-            speechRecognizer = null
-        } else {
-            val audioFile = audioRecorder?.stopRecording()
-            
-            if (audioFile != null && audioFile.exists() && audioFile.length() > 0) {
-                controller.setRecordingStatus(false, "Transcribing...")
-                
-                CoroutineScope(Dispatchers.IO).launch {
-                    // Choose API based on selected engine
-                    val result = if (controller.state.isUsingGeminiStt) {
-                        geminiLiveApi.transcribe(
-                            audioFile,
-                            controller.state.currentLanguage.code
-                        )
-                    } else {
-                        groqWhisperApi.transcribe(
-                            audioFile,
-                            controller.state.currentLanguage.code
-                        )
-                    }
-                    
-                    withContext(Dispatchers.Main) {
-                        result.fold(
-                            onSuccess = { text ->
-                                controller.setTranscriptionResult(
-                                    TranscriptionResult.Success(
-                                        text = text,
-                                        language = controller.state.currentLanguage.code
-                                    )
-                                )
-                            },
-                            onFailure = { error ->
-                                controller.setTranscriptionResult(
-                                    TranscriptionResult.Error(error.message ?: "Transcription failed")
-                                )
-                            }
-                        )
-                    }
-                    audioFile.delete()
-                }
-            }
         }
     }
 
@@ -504,36 +539,24 @@ class AiKeyboardService : InputMethodService() {
             val translateView = TranslateView.create(
                 context = this@AiKeyboardService,
                 onTranslate = { text, source, target -> performTranslation(text, source, target) },
-                onLanguageChange = { language -> controller.setLanguage(language) },
+                onLanguageChange = { },
                 onInsertText = { text -> insertText(text) }
             )
-            translateView.updateState(controller.state)
             addView(translateView)
         }
     }
 
-    /**
-     * Perform translation
-     */
     private fun performTranslation(text: String, source: Language, target: Language) {
         CoroutineScope(Dispatchers.IO).launch {
             val result = zAiApi.translate(text, source.code, target.code)
-            
+
             withContext(Dispatchers.Main) {
                 result.fold(
                     onSuccess = { translatedText ->
-                        controller.setTranslationResult(
-                            TranslationResult.Success(
-                                translatedText = translatedText,
-                                sourceLanguage = source,
-                                targetLanguage = target
-                            )
-                        )
+                        Toast.makeText(this@AiKeyboardService, translatedText, Toast.LENGTH_SHORT).show()
                     },
                     onFailure = { error ->
-                        controller.setTranslationResult(
-                            TranslationResult.Error(error.message ?: "Translation failed")
-                        )
+                        Toast.makeText(this@AiKeyboardService, "Error: ${error.message}", Toast.LENGTH_SHORT).show()
                     }
                 )
             }
@@ -567,50 +590,25 @@ class AiKeyboardService : InputMethodService() {
 
             addView(Button(this@AiKeyboardService).apply {
                 text = "EN"
-                setTextColor(
-                    if (controller.state.currentLanguage == Language.ENGLISH)
-                        Color.parseColor("#4285F4")
-                    else
-                        Color.GRAY
-                )
+                setTextColor(Color.WHITE)
                 setBackgroundColor(Color.TRANSPARENT)
                 textSize = 12f
-                setOnClickListener {
-                    controller.setLanguage(Language.ENGLISH)
-                    switchPanel(controller.state.currentPanel)
-                }
             })
             addView(Button(this@AiKeyboardService).apply {
                 text = "বাং"
-                setTextColor(
-                    if (controller.state.currentLanguage == Language.BENGALI)
-                        Color.parseColor("#4285F4")
-                    else
-                        Color.GRAY
-                )
+                setTextColor(Color.GRAY)
                 setBackgroundColor(Color.TRANSPARENT)
                 textSize = 12f
-                setOnClickListener {
-                    controller.setLanguage(Language.BENGALI)
-                    switchPanel(controller.state.currentPanel)
-                }
             })
         }
     }
 
     // ==================== HELPERS ====================
 
-    /**
-     * Insert text into the current input field
-     */
     private fun insertText(text: String) {
         currentInputConnection?.commitText(text, 1)
-        controller.appendText(text)
     }
 
-    /**
-     * Create an error view
-     */
     private fun createErrorView(message: String): View {
         return TextView(this).apply {
             text = "AI Voice Keyboard\n$message"
@@ -620,21 +618,6 @@ class AiKeyboardService : InputMethodService() {
             textSize = 16f
             gravity = Gravity.CENTER
         }
-    }
-
-    override fun onStartInput(attribute: android.view.inputmethod.EditorInfo?, restarting: Boolean) {
-        super.onStartInput(attribute, restarting)
-        Log.d(TAG, "onStartInput")
-    }
-
-    override fun onStartInputView(editorInfo: android.view.inputmethod.EditorInfo?, restarting: Boolean) {
-        super.onStartInputView(editorInfo, restarting)
-        Log.d(TAG, "=== KEYBOARD VISIBLE - READY TO TYPE ===")
-    }
-
-    override fun onFinishInput() {
-        super.onFinishInput()
-        Log.d(TAG, "onFinishInput")
     }
 
     override fun onDestroy() {

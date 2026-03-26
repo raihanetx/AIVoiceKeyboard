@@ -74,32 +74,37 @@ jobs:
         tag_name: ${{ steps.version.outputs.tag }}
         name: AI Voice Keyboard ${{ steps.version.outputs.tag }}
         body: |
-          ## 🎤 AI Voice Keyboard v3.4.0
+          ## 🎤 AI Voice Keyboard v3.5.0
           
-          ### ✨ Fixed Voice Section - Now Works Properly!
-          - **Radio Button Selection** - Select ONE engine at a time
-          - **"Set API Key" Button** - Opens Settings to input key
-          - **Selection Persists** - Your choice is saved
-          - **Clear Visual Feedback** - Shows which engine is active
+          ### ✨ Complete Voice Section Redesign
           
-          ### 🎯 3 STT Engine Options
+          **NEW: Proper Engine Selection**
+          - Radio-style selection - ONLY ONE engine at a time
+          - Clear visual feedback for selected engine
+          - Selection persists between sessions
+          
+          **NEW: Inline API Key Input**
+          - Enter API key directly in the voice panel
+          - No need to go to Settings
+          - Keys are saved automatically
+          
+          **Engine Cards:**
           - 🟢 **Android (Offline)** - Free, no API key needed
           - 🔵 **Groq (Online)** - Fast & accurate, needs API key
-          - 🟣 **Gemini (Live)** - Best quality, needs API key
+          - 🟣 **Gemini (Live)** - Real-time streaming, needs API key
           
           ### 🔑 How to Use
-          1. Select an engine (Android/Groq/Gemini)
-          2. If Groq/Gemini: Tap "Set API Key" button
-          3. Enter your API key in Settings
-          4. Come back and tap 🎤 to speak
+          1. Tap on an engine card to select
+          2. For Groq/Gemini: Enter API key when prompted
+          3. Tap the 🎤 mic button to start recording
+          4. Tap "Insert Text" to use the result
           
           ### Get API Keys
           - Groq: https://console.groq.com/keys
           - Gemini: https://aistudio.google.com/apikey
           
           ### 🌐 Translation
-          - English ↔ বাংলা translation
-          - Powered by GLM-4.7-Flash
+          - English ↔ বাংলা translation included
         files: apk/*.apk
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
