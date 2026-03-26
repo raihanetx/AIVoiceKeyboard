@@ -2,7 +2,8 @@ name: Build and Release APK
 
 on:
   push:
-    branches: [ main ]
+    tags:
+      - 'v*'
   workflow_dispatch:
 
 permissions:
@@ -35,19 +36,18 @@ jobs:
     - name: Grant execute permission for gradlew
       run: chmod +x gradlew
 
-    - name: Build Debug APK
-      run: ./gradlew assembleDebug --no-daemon
+    - name: Build Release APK
+      run: ./gradlew assembleRelease --no-daemon
 
     - name: Upload APK
       uses: actions/upload-artifact@v4
       with:
-        name: app-debug
-        path: app/build/outputs/apk/debug/*.apk
+        name: app-release
+        path: app/build/outputs/apk/release/*.apk
 
   release:
     needs: build
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
 
     steps:
     - name: Checkout code
@@ -62,7 +62,7 @@ jobs:
     - name: Download APK
       uses: actions/download-artifact@v4
       with:
-        name: app-debug
+        name: app-release
         path: apk
 
     - name: List APK files
@@ -74,35 +74,36 @@ jobs:
         tag_name: ${{ steps.version.outputs.tag }}
         name: AI Voice Keyboard ${{ steps.version.outputs.tag }}
         body: |
-          ## 🎤 AI Voice Keyboard v3.6.0
-          
-          ### ✨ Fixed Voice Section Issues
-          
-          **Better API Key Handling:**
-          - Improved API key input field with proper Save button
-          - API key status now shows "✓ Ready" when saved
-          - Better error messages and feedback
-          
-          **Improved UI:**
-          - Larger, more visible engine cards
-          - Clear radio-style selection indicator
-          - Better visual feedback for selected engine
-          
-          **Debug Logging:**
-          - Added logging to help diagnose issues
-          
+          ## 🎤 AI Voice Keyboard v3.8.0
+
+          ### ✨ New: Detailed Error Handling
+
+          **Better Error Messages:**
+          - Shows specific error type (auth, network, timeout, rate limit, etc.)
+          - Displays technical details in expandable section
+          - **Copy button** to easily copy error message for debugging
+          - Better categorization of API errors
+
+          **Error Types:**
+          - 🔐 **Authentication** - Invalid or missing API key
+          - 🌐 **Network** - Connection issues
+          - ⏱️ **Timeout** - Request took too long
+          - 🚫 **Rate Limit** - Too many requests
+          - ⚠️ **Server** - API server issues
+          - 🔇 **No Audio** - Recording problems
+
           ### 🎯 3 STT Engines
           - 🟢 **Android (Offline)** - Free, no API key needed
           - 🔵 **Groq (Online)** - Fast & accurate, needs API key
           - 🟣 **Gemini (Live)** - Real-time streaming, needs API key
-          
+
           ### How to Use
           1. Tap on an engine card to select
           2. For Groq/Gemini: Enter API key and tap Save
           3. Tap the 🎤 mic button to start recording
           4. Speak and tap mic again to stop
           5. Tap "Insert Text" to use the result
-          
+
           ### Get API Keys
           - Groq: https://console.groq.com/keys
           - Gemini: https://aistudio.google.com/apikey
