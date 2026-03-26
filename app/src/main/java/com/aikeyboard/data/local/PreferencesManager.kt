@@ -108,8 +108,9 @@ class PreferencesManager(context: Context) {
 
     /**
      * Check if Groq API key is configured
+     * Always returns true since we have a fallback key in GroqWhisperApi
      */
-    fun hasGroqApiKey(): Boolean = getGroqApiKey().isNotBlank()
+    fun hasGroqApiKey(): Boolean = true
 
     /**
      * Clear Groq API key

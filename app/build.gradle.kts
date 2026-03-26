@@ -12,8 +12,8 @@ android {
         applicationId = "com.aikeyboard"
         minSdk = 26
         targetSdk = 34
-        versionCode = 36
-        versionName = "3.6.0"
+        versionCode = 37
+        versionName = "3.6.1"
     }
 
     buildTypes {
