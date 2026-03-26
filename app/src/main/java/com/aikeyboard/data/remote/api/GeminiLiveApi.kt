@@ -144,7 +144,7 @@ class GeminiLiveApi(private val context: Context) {
      * Check if the API is configured and available
      */
     fun isConfigured(): Boolean {
-        return preferencesManager.isGeminiApiKeyConfigured()
+        return preferencesManager.hasGeminiApiKey()
     }
 
     /**

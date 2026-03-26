@@ -123,7 +123,7 @@ class GroqWhisperApi(private val context: Context) {
      * Check if the API is configured and available
      */
     fun isConfigured(): Boolean {
-        return preferencesManager.isGroqApiKeyConfigured()
+        return preferencesManager.hasGroqApiKey()
     }
 
     /**

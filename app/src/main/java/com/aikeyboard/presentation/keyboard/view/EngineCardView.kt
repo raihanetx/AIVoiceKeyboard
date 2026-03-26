@@ -33,7 +33,6 @@ class EngineCardView(
     // UI Components
     private val container: LinearLayout
     private val radioCircle: View
-    private val titleText: TextView
     private val descText: TextView
     private val statusBadge: TextView
     private val apiKeyContainer: LinearLayout
