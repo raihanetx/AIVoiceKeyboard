@@ -25,34 +25,18 @@ class TranscriptionRepositoryImpl(
             return@flow
         }
 
-        // Use Groq Whisper by default
-        val result = groqWhisperApi.transcribe(
-            audioFile = audioData.file,
-            language = audioData.language
-        )
+        val result = groqWhisperApi.transcribe(audioData.file, audioData.language)
 
         if (result.isSuccess && result.text != null) {
-            emit(TranscriptionResult.Success(
-                text = result.text,
-                language = audioData.language
-            ))
+            emit(TranscriptionResult.Success(text = result.text, language = audioData.language))
         } else {
-            emit(TranscriptionResult.Error(
-                message = result.errorMessage ?: "Transcription failed"
-            ))
+            emit(TranscriptionResult.Error(message = result.errorMessage ?: "Transcription failed"))
         }
     }
 
-    override suspend fun isServiceAvailable(): Boolean {
-        return groqWhisperApi.isConfigured()
-    }
+    override suspend fun isServiceAvailable(): Boolean = groqWhisperApi.isConfigured()
 
-    override fun getSupportedLanguages(): List<String> {
-        return groqWhisperApi.getSupportedLanguages()
-    }
+    override fun getSupportedLanguages(): List<String> = groqWhisperApi.getSupportedLanguages()
 
-    override suspend fun cancelTranscription() {
-        // Currently no cancellation support in the API client
-        // Could be implemented with OkHttp call cancellation
-    }
+    override suspend fun cancelTranscription() {}
 }

@@ -4,7 +4,6 @@ import android.content.Context
 import android.util.Log
 import com.aikeyboard.core.constants.ApiConstants
 import com.aikeyboard.data.local.PreferencesManager
-import com.aikeyboard.presentation.keyboard.ErrorType
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
@@ -21,11 +20,7 @@ import java.util.concurrent.TimeUnit
 private const val TAG = "GeminiLiveApi"
 
 /**
- * Gemini 2.5 Flash Live API client for speech-to-text transcription
- *
- * Uses Gemini's native audio input capability for real-time transcription.
- * Free tier: 15 RPM, 1 million tokens/day
- * Get API key from: https://aistudio.google.com/apikey
+ * Gemini 2.5 Flash API client for speech-to-text
  */
 class GeminiLiveApi(private val context: Context) {
 
@@ -37,60 +32,32 @@ class GeminiLiveApi(private val context: Context) {
 
     private val preferencesManager: PreferencesManager by lazy { PreferencesManager.getInstance(context) }
 
-    /**
-     * Transcribe audio file to text using Gemini 2.5 Flash
-     *
-     * @param audioFile The audio file to transcribe
-     * @param language The language code (e.g., "en", "bn")
-     * @return ApiTranscriptionResult with either success text or detailed error
-     */
-    suspend fun transcribe(
-        audioFile: File,
-        language: String
-    ): ApiTranscriptionResult = withContext(Dispatchers.IO) {
+    suspend fun transcribe(audioFile: File, language: String): ApiTranscriptionResult = withContext(Dispatchers.IO) {
         try {
-            // Validate file
             if (!audioFile.exists()) {
-                return@withContext ApiTranscriptionResult.error(
-                    ErrorType.NO_AUDIO,
-                    "Audio file not found",
-                    "Path: ${audioFile.absolutePath}"
-                )
+                return@withContext ApiTranscriptionResult.error(ApiErrorType.NO_AUDIO, "Audio file not found", null)
             }
             if (audioFile.length() == 0L) {
-                return@withContext ApiTranscriptionResult.error(
-                    ErrorType.NO_AUDIO,
-                    "Audio file is empty",
-                    "No audio data was recorded. Please check microphone permissions."
-                )
+                return@withContext ApiTranscriptionResult.error(ApiErrorType.NO_AUDIO, "Audio file is empty", null)
             }
 
-            // Check API key from PreferencesManager
             val apiKey = preferencesManager.getGeminiApiKey().trim()
             if (apiKey.isEmpty()) {
-                return@withContext ApiTranscriptionResult.error(
-                    ErrorType.AUTH,
-                    "No API key configured",
-                    "Please enter your Gemini API key in the voice settings.\n\nGet free key from: aistudio.google.com/apikey"
-                )
+                return@withContext ApiTranscriptionResult.error(ApiErrorType.AUTH, "No API key configured", "Enter your Gemini API key")
             }
+
+            Log.d(TAG, "Transcribing: ${audioFile.name}, size: ${audioFile.length()}, lang: $language")
 
             val audioBytes = audioFile.readBytes()
             val base64Audio = Base64.getEncoder().encodeToString(audioBytes)
             val mimeType = getMimeType(audioFile)
 
-            Log.d(TAG, "========== GEMINI TRANSCRIBE START ==========")
-            Log.d(TAG, "File: ${audioFile.name}, mimeType: $mimeType, size: ${audioFile.length()}")
-            Log.d(TAG, "API Key: length=${apiKey.length}, prefix=${apiKey.take(5)}...")
-            Log.d(TAG, "Language: $language")
-
             val languageInstruction = if (language == "bn") {
-                "Transcribe the following audio in Bengali language. Output only the transcribed text, nothing else."
+                "Transcribe the following audio in Bengali. Output only the transcribed text."
             } else {
-                "Transcribe the following audio in English language. Output only the transcribed text, nothing else."
+                "Transcribe the following audio in English. Output only the transcribed text."
             }
 
-            // Build JSON request for Gemini
             val jsonBody = JSONObject().apply {
                 put("contents", org.json.JSONArray().apply {
                     put(JSONObject().apply {
@@ -113,99 +80,47 @@ class GeminiLiveApi(private val context: Context) {
                 })
             }
 
-            val requestBody = jsonBody.toString()
-                .toRequestBody("application/json".toMediaType())
-
-            val url = "${ApiConstants.GEMINI_ENDPOINT}/models/${ApiConstants.GEMINI_MODEL}:generateContent?key=$apiKey"
-            Log.d(TAG, "Request URL: ${url.take(80)}...")
-
             val request = Request.Builder()
-                .url(url)
-                .post(requestBody)
+                .url("${ApiConstants.GEMINI_ENDPOINT}/models/${ApiConstants.GEMINI_MODEL}:generateContent?key=$apiKey")
+                .post(jsonBody.toString().toRequestBody("application/json".toMediaType()))
                 .addHeader("Content-Type", "application/json")
                 .build()
 
-            Log.d(TAG, "Sending request to Gemini API...")
-
             client.newCall(request).execute().use { response ->
                 val bodyString = response.body?.string()
-                Log.d(TAG, "Response code: ${response.code}")
-                Log.d(TAG, "Response body: ${bodyString?.take(200)}")
+                Log.d(TAG, "Response: ${response.code}")
 
                 if (response.isSuccessful && !bodyString.isNullOrBlank()) {
-                    val jsonResponse = JSONObject(bodyString)
-                    val candidates = jsonResponse.optJSONArray("candidates")
-
+                    val json = JSONObject(bodyString)
+                    val candidates = json.optJSONArray("candidates")
                     if (candidates != null && candidates.length() > 0) {
-                        val content = candidates.getJSONObject(0)
+                        val text = candidates.getJSONObject(0)
                             .optJSONObject("content")
-                        val parts = content?.optJSONArray("parts")
-
-                        if (parts != null && parts.length() > 0) {
-                            val text = parts.getJSONObject(0).optString("text", "")
-                            if (text.isNotBlank()) {
-                                Log.d(TAG, "========== GEMINI SUCCESS ==========")
-                                Log.d(TAG, "Result: ${text.take(100)}")
-                                return@withContext ApiTranscriptionResult.success(text.trim())
-                            }
+                            ?.optJSONArray("parts")
+                            ?.getJSONObject(0)
+                            ?.optString("text", "")
+                        if (!text.isNullOrBlank()) {
+                            return@withContext ApiTranscriptionResult.success(text.trim())
                         }
                     }
-
-                    Log.e(TAG, "Empty transcription result")
-                    ApiTranscriptionResult.error(
-                        ErrorType.EMPTY_RESULT,
-                        "No speech detected",
-                        "The audio was processed but no speech was detected. Please speak clearly and try again."
-                    )
+                    ApiTranscriptionResult.error(ApiErrorType.EMPTY_RESULT, "No speech detected", null)
                 } else {
-                    val (errorType, errorMessage, errorDetails) = parseDetailedError(response.code, bodyString)
-                    Log.e(TAG, "========== GEMINI FAILED ==========")
-                    Log.e(TAG, "Error Type: $errorType")
-                    Log.e(TAG, "Error Message: $errorMessage")
-                    ApiTranscriptionResult.error(errorType, errorMessage, errorDetails)
+                    parseError(response.code, bodyString)
                 }
             }
         } catch (e: SocketTimeoutException) {
-            Log.e(TAG, "Request timed out", e)
-            ApiTranscriptionResult.error(
-                ErrorType.TIMEOUT,
-                "Request timed out",
-                "The API request took too long. Please check your internet connection and try again.\n\nTechnical: ${e.message}"
-            )
+            ApiTranscriptionResult.error(ApiErrorType.TIMEOUT, "Request timed out", e.message)
         } catch (e: UnknownHostException) {
-            Log.e(TAG, "No internet connection", e)
-            ApiTranscriptionResult.error(
-                ErrorType.NETWORK,
-                "No internet connection",
-                "Unable to connect to Gemini API. Please check your internet connection.\n\nTechnical: ${e.message}"
-            )
+            ApiTranscriptionResult.error(ApiErrorType.NETWORK, "No internet connection", e.message)
         } catch (e: Exception) {
-            Log.e(TAG, "Transcription failed", e)
-            ApiTranscriptionResult.error(
-                ErrorType.UNKNOWN,
-                "Transcription failed",
-                "An unexpected error occurred: ${e.message}\n\nException: ${e.javaClass.simpleName}"
-            )
+            ApiTranscriptionResult.error(ApiErrorType.UNKNOWN, "Transcription failed", e.message)
         }
     }
 
-    /**
-     * Check if the API is configured and available
-     */
-    fun isConfigured(): Boolean {
-        return preferencesManager.hasGeminiApiKey()
-    }
+    fun isConfigured(): Boolean = preferencesManager.hasGeminiApiKey()
 
-    /**
-     * Get supported languages
-     */
-    fun getSupportedLanguages(): List<String> {
-        return listOf("en", "bn")
-    }
+    fun getSupportedLanguages(): List<String> = listOf("en", "bn")
 
-    /**
-     * Get MIME type for audio file
-     */
     private fun getMimeType(file: File): String {
         return when (file.extension.lowercase()) {
             "3gp" -> "audio/3gpp"
@@ -218,58 +133,19 @@ class GeminiLiveApi(private val context: Context) {
         }
     }
 
-    /**
-     * Parse detailed error from API response
-     * Returns: Triple(errorType, userMessage, technicalDetails)
-     */
-    private fun parseDetailedError(code: Int, body: String?): Triple<String, String, String> {
-        val technicalDetails = "HTTP $code\nResponse: ${body?.take(500) ?: "No response body"}"
+    private fun parseError(code: Int, body: String?): ApiTranscriptionResult {
+        val parsedMessage = try {
+            body?.let {
+                JSONObject(it).optJSONObject("error")?.optString("message", null)
+            } ?: "API Error: $code"
+        } catch (e: Exception) { "API Error: $code" }
 
-        // Parse Gemini error format
-        val parsedError = try {
-            if (!body.isNullOrBlank()) {
-                val json = JSONObject(body)
-                val error = json.optJSONObject("error")
-                error?.optString("message", null)
-            } else null
-        } catch (e: Exception) { null }
-
-        when (code) {
-            400 -> {
-                return Triple(
-                    ErrorType.INVALID_KEY,
-                    "Invalid request",
-                    "${parsedError ?: "Bad request"}\n\nThe audio format may not be supported.\n\n$technicalDetails"
-                )
-            }
-            401, 403 -> {
-                return Triple(
-                    ErrorType.INVALID_KEY,
-                    "Invalid API key",
-                    "${parsedError ?: "Authentication failed"}\n\nYour API key was rejected. Please verify:\n1. The key is correct\n2. The key is active\n3. Get your key from: aistudio.google.com/apikey\n\n$technicalDetails"
-                )
-            }
-            429 -> {
-                return Triple(
-                    ErrorType.RATE_LIMIT,
-                    "Rate limit exceeded",
-                    "${parsedError ?: "Too many requests"}\n\nYou've reached the API rate limit. Please wait a moment and try again.\n\n$technicalDetails"
-                )
-            }
-            500, 502, 503, 504 -> {
-                return Triple(
-                    ErrorType.SERVER,
-                    "Server error",
-                    "Gemini API is experiencing issues (HTTP $code). Please try again in a few moments.\n\n$technicalDetails"
-                )
-            }
-            else -> {
-                return Triple(
-                    ErrorType.UNKNOWN,
-                    "API Error ($code)",
-                    "${parsedError ?: "Unknown error"}\n\n$technicalDetails"
-                )
-            }
+        return when (code) {
+            400 -> ApiTranscriptionResult.error(ApiErrorType.INVALID_KEY, "Invalid request", parsedMessage)
+            401, 403 -> ApiTranscriptionResult.error(ApiErrorType.INVALID_KEY, "Invalid API key", "Get key from aistudio.google.com/apikey")
+            429 -> ApiTranscriptionResult.error(ApiErrorType.RATE_LIMIT, "Rate limit exceeded", "Wait and try again")
+            500, 502, 503, 504 -> ApiTranscriptionResult.error(ApiErrorType.SERVER, "Server error", "Try again later")
+            else -> ApiTranscriptionResult.error(ApiErrorType.UNKNOWN, parsedMessage, "HTTP $code")
         }
     }
 
@@ -279,9 +155,7 @@ class GeminiLiveApi(private val context: Context) {
 
         fun getInstance(context: Context): GeminiLiveApi {
             return instance ?: synchronized(this) {
-                instance ?: GeminiLiveApi(context.applicationContext).also {
-                    instance = it
-                }
+                instance ?: GeminiLiveApi(context.applicationContext).also { instance = it }
             }
         }
     }

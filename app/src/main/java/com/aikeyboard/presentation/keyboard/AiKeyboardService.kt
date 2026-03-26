@@ -1,6 +1,8 @@
 package com.aikeyboard.presentation.keyboard
 
 import android.Manifest
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.pm.PackageManager
 import android.graphics.Color
 import android.inputmethodservice.InputMethodService
@@ -11,11 +13,11 @@ import android.speech.SpeechRecognizer
 import android.util.Log
 import android.view.Gravity
 import android.view.View
+import android.view.LayoutInflater
 import android.widget.*
 import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import com.aikeyboard.R
-import com.aikeyboard.core.constants.AppConstants
-import com.aikeyboard.core.extension.dpToPx
 import com.aikeyboard.core.util.AudioRecorder
 import com.aikeyboard.data.local.PreferencesManager
 import com.aikeyboard.data.remote.api.ApiTranscriptionResult
@@ -23,17 +25,13 @@ import com.aikeyboard.data.remote.api.GeminiLiveApi
 import com.aikeyboard.data.remote.api.GroqWhisperApi
 import com.aikeyboard.data.remote.api.ZAiApi
 import com.aikeyboard.domain.model.Language
-import com.aikeyboard.presentation.keyboard.view.EmojiView
-import com.aikeyboard.presentation.keyboard.view.KeyboardView
-import com.aikeyboard.presentation.keyboard.view.TranslateView
-import com.aikeyboard.presentation.keyboard.view.VoiceInputView
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
- * AI Voice Keyboard Input Method Service
+ * AI Voice Keyboard Input Method Service - Simplified with XML layouts
  */
 class AiKeyboardService : InputMethodService() {
 
@@ -56,10 +54,41 @@ class AiKeyboardService : InputMethodService() {
 
     // Views
     private var mainLayout: LinearLayout? = null
-    private var voiceInputView: VoiceInputView? = null
+    private var voicePanel: View? = null
 
-    // Current voice state
-    private var voiceState = VoiceUiState()
+    // Voice panel views
+    private var cardAndroid: View? = null
+    private var cardGroq: View? = null
+    private var cardGemini: View? = null
+    private var radioAndroid: View? = null
+    private var radioGroq: View? = null
+    private var radioGemini: View? = null
+    private var badgeGroq: TextView? = null
+    private var badgeGemini: TextView? = null
+    private var apiKeyGroqContainer: View? = null
+    private var apiKeyGeminiContainer: View? = null
+    private var apiKeyGroqInput: EditText? = null
+    private var apiKeyGeminiInput: EditText? = null
+    private var btnSaveGroqKey: Button? = null
+    private var btnSaveGeminiKey: Button? = null
+    private var errorContainer: View? = null
+    private var errorTitle: TextView? = null
+    private var errorMessage: TextView? = null
+    private var errorDetails: TextView? = null
+    private var btnToggleDetails: Button? = null
+    private var btnCopyError: Button? = null
+    private var btnEnglish: Button? = null
+    private var btnBengali: Button? = null
+    private var micButton: View? = null
+    private var micButtonBg: View? = null
+    private var statusText: TextView? = null
+    private var resultCard: View? = null
+    private var resultText: TextView? = null
+    private var btnInsertText: Button? = null
+
+    // Current state
+    private var selectedEngine: String = "android"
+    private var currentLanguage: Language = Language.ENGLISH
 
     override fun onCreate() {
         super.onCreate()
@@ -79,33 +108,11 @@ class AiKeyboardService : InputMethodService() {
         }
     }
 
-    /**
-     * Load saved preferences into state
-     */
     private fun loadPreferences() {
-        val savedEngine = preferencesManager.getSttEngine()
+        selectedEngine = preferencesManager.getSttEngine()
         val savedLanguage = preferencesManager.getLanguage()
-
-        voiceState = voiceState.copy(
-            selectedEngine = savedEngine,
-            currentLanguage = if (savedLanguage == "bn") Language.BENGALI else Language.ENGLISH,
-            groqApiKeyStatus = if (preferencesManager.hasGroqApiKey()) ApiKeyStatus.SAVED else ApiKeyStatus.NONE,
-            geminiApiKeyStatus = if (preferencesManager.hasGeminiApiKey()) ApiKeyStatus.SAVED else ApiKeyStatus.NONE,
-            statusMessage = getStatusMessage(savedEngine)
-        )
-        Log.d(TAG, "Loaded preferences - Engine: $savedEngine, GroqKey: ${voiceState.groqApiKeyStatus}, GeminiKey: ${voiceState.geminiApiKeyStatus}")
-    }
-
-    /**
-     * Get status message based on engine and API key status
-     */
-    private fun getStatusMessage(engine: String): String {
-        return when (engine) {
-            "android" -> "🟢 Android ready - Tap mic to speak"
-            "groq" -> if (preferencesManager.hasGroqApiKey()) "🔵 Groq ready - Tap mic to speak" else "⚠️ Enter Groq API Key first"
-            "gemini" -> if (preferencesManager.hasGeminiApiKey()) "🟣 Gemini ready - Tap mic to speak" else "⚠️ Enter Gemini API Key first"
-            else -> "Select an engine"
-        }
+        currentLanguage = if (savedLanguage == "bn") Language.BENGALI else Language.ENGLISH
+        Log.d(TAG, "Loaded - Engine: $selectedEngine, Language: $currentLanguage")
     }
 
     private fun createMainLayout(): LinearLayout {
@@ -118,7 +125,7 @@ class AiKeyboardService : InputMethodService() {
             )
 
             addView(createHeader())
-            addView(createPanelContent(AppConstants.PANEL_KEYBOARD))
+            addView(createPanelContent("keyboard"))
             addView(createLanguageSwitch())
         }
     }
@@ -131,10 +138,10 @@ class AiKeyboardService : InputMethodService() {
             setPadding(8, 10, 8, 10)
 
             listOf(
-                "ABC" to AppConstants.PANEL_KEYBOARD,
-                "🎤" to AppConstants.PANEL_VOICE,
-                "🌐" to AppConstants.PANEL_TRANSLATE,
-                "😀" to AppConstants.PANEL_EMOJI
+                "ABC" to "keyboard",
+                "🎤" to "voice",
+                "🌐" to "translate",
+                "😀" to "emoji"
             ).forEach { (label, panel) ->
                 addView(Button(this@AiKeyboardService).apply {
                     text = label
@@ -157,9 +164,9 @@ class AiKeyboardService : InputMethodService() {
 
     private fun createPanelContent(panel: String): View {
         return when (panel) {
-            AppConstants.PANEL_VOICE -> createVoicePanel()
-            AppConstants.PANEL_TRANSLATE -> createTranslatePanel()
-            AppConstants.PANEL_EMOJI -> createEmojiPanel()
+            "voice" -> createVoicePanel()
+            "translate" -> createTranslatePanel()
+            "emoji" -> createEmojiPanel()
             else -> createKeyboardPanel()
         }
     }
@@ -169,541 +176,465 @@ class AiKeyboardService : InputMethodService() {
     private fun createKeyboardPanel(): LinearLayout {
         return LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(0, dpToPx(4), 0, dpToPx(4))
+            setPadding(4, 4, 4, 4)
 
-            val keyboardView = KeyboardView.create(
-                context = this@AiKeyboardService,
-                onKeyPress = { key -> handleKeyPress(key) },
-                onLongKeyPress = { key -> handleLongKeyPress(key) }
-            )
+            val inflater = LayoutInflater.from(context)
+            val keyboardView = inflater.inflate(R.layout.keyboard_panel, this, false)
+
+            // Set up key listeners
+            keyboardView.findViewById<Button>(R.id.btnBackspace)?.setOnClickListener {
+                currentInputConnection?.deleteSurroundingText(1, 0)
+            }
+            keyboardView.findViewById<Button>(R.id.btnSpace)?.setOnClickListener {
+                currentInputConnection?.commitText(" ", 1)
+            }
+            keyboardView.findViewById<Button>(R.id.btnReturn)?.setOnClickListener {
+                currentInputConnection?.performEditorAction(android.view.inputmethod.EditorInfo.IME_ACTION_DONE)
+            }
+            keyboardView.findViewById<Button>(R.id.btnEmoji)?.setOnClickListener {
+                switchPanel("emoji")
+            }
+
+            // Set up all letter buttons
+            for (i in 0 until (keyboardView as ViewGroup).childCount) {
+                val row = keyboardView.getChildAt(i) as? ViewGroup ?: continue
+                for (j in 0 until row.childCount) {
+                    val btn = row.getChildAt(j) as? Button ?: continue
+                    val key = btn.text.toString()
+                    if (key.length == 1 && key[0].isLetter()) {
+                        btn.setOnClickListener {
+                            currentInputConnection?.commitText(key.lowercase(), 1)
+                        }
+                    }
+                }
+            }
+
             addView(keyboardView)
-        }
-    }
-
-    private fun handleKeyPress(key: String) {
-        when {
-            key == "⌫" -> currentInputConnection?.deleteSurroundingText(1, 0)
-            key == "Space" -> currentInputConnection?.commitText(" ", 1)
-            key == "↵" -> currentInputConnection?.performEditorAction(android.view.inputmethod.EditorInfo.IME_ACTION_DONE)
-            key == "😊" -> switchPanel(AppConstants.PANEL_EMOJI)
-            else -> currentInputConnection?.commitText(key, 1)
-        }
-    }
-
-    private fun handleLongKeyPress(key: String) {
-        if (key == "⌫") {
-            currentInputConnection?.deleteSurroundingText(10000, 0)
         }
     }
 
     // ==================== VOICE PANEL ====================
 
-    private fun createVoicePanel(): LinearLayout {
-        return LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setBackgroundColor(Color.parseColor("#1A1A2E"))
-            setPadding(16, 16, 16, 16)
-            gravity = Gravity.CENTER_HORIZONTAL
+    private fun createVoicePanel(): View {
+        val inflater = LayoutInflater.from(this)
+        voicePanel = inflater.inflate(R.layout.voice_panel, null)
 
-            voiceInputView = VoiceInputView.create(this@AiKeyboardService).apply {
-                onEngineSelected = { engine -> handleEngineSelection(engine) }
-                onApiKeySaved = { engine, key -> handleApiKeyEntered(engine, key) }
-                onMicClicked = { handleMicClick() }
-                onLanguageChanged = { language -> handleLanguageChange(language) }
-                onInsertText = { text -> insertText(text) }
-            }
-            voiceInputView?.updateState(voiceState)
-            addView(voiceInputView)
+        // Find all views
+        cardAndroid = voicePanel?.findViewById(R.id.cardAndroid)
+        cardGroq = voicePanel?.findViewById(R.id.cardGroq)
+        cardGemini = voicePanel?.findViewById(R.id.cardGemini)
+        radioAndroid = voicePanel?.findViewById(R.id.radioAndroid)
+        radioGroq = voicePanel?.findViewById(R.id.radioGroq)
+        radioGemini = voicePanel?.findViewById(R.id.radioGemini)
+        badgeGroq = voicePanel?.findViewById(R.id.badgeGroq)
+        badgeGemini = voicePanel?.findViewById(R.id.badgeGemini)
+        apiKeyGroqContainer = voicePanel?.findViewById(R.id.apiKeyGroqContainer)
+        apiKeyGeminiContainer = voicePanel?.findViewById(R.id.apiKeyGeminiContainer)
+        apiKeyGroqInput = voicePanel?.findViewById(R.id.apiKeyGroqInput)
+        apiKeyGeminiInput = voicePanel?.findViewById(R.id.apiKeyGeminiInput)
+        btnSaveGroqKey = voicePanel?.findViewById(R.id.btnSaveGroqKey)
+        btnSaveGeminiKey = voicePanel?.findViewById(R.id.btnSaveGeminiKey)
+        errorContainer = voicePanel?.findViewById(R.id.errorContainer)
+        errorTitle = voicePanel?.findViewById(R.id.errorTitle)
+        errorMessage = voicePanel?.findViewById(R.id.errorMessage)
+        errorDetails = voicePanel?.findViewById(R.id.errorDetails)
+        btnToggleDetails = voicePanel?.findViewById(R.id.btnToggleDetails)
+        btnCopyError = voicePanel?.findViewById(R.id.btnCopyError)
+        btnEnglish = voicePanel?.findViewById(R.id.btnEnglish)
+        btnBengali = voicePanel?.findViewById(R.id.btnBengali)
+        micButton = voicePanel?.findViewById(R.id.micButton)
+        micButtonBg = micButton?.getChildAt(0)
+        statusText = voicePanel?.findViewById(R.id.statusText)
+        resultCard = voicePanel?.findViewById(R.id.resultCard)
+        resultText = voicePanel?.findViewById(R.id.resultText)
+        btnInsertText = voicePanel?.findViewById(R.id.btnInsertText)
+
+        // Set up listeners
+        cardAndroid?.setOnClickListener { selectEngine("android") }
+        cardGroq?.setOnClickListener { handleGroqClick() }
+        cardGemini?.setOnClickListener { handleGeminiClick() }
+
+        btnSaveGroqKey?.setOnClickListener { saveGroqApiKey() }
+        btnSaveGeminiKey?.setOnClickListener { saveGeminiApiKey() }
+
+        btnToggleDetails?.setOnClickListener {
+            errorDetails?.visibility = if (errorDetails?.visibility == View.VISIBLE) View.GONE else View.VISIBLE
+            btnToggleDetails?.text = if (errorDetails?.visibility == View.VISIBLE) "Hide" else "Details"
         }
-    }
 
-    /**
-     * Handle engine selection
-     */
-    private fun handleEngineSelection(engine: String) {
-        Log.d(TAG, "=== Engine selected: $engine ===")
+        btnCopyError?.setOnClickListener { copyErrorToClipboard() }
 
-        when (engine) {
-            "android" -> {
-                // Android doesn't need API key
-                selectEngine(engine)
-            }
-            "groq" -> {
-                if (preferencesManager.hasGroqApiKey()) {
-                    Log.d(TAG, "Groq has API key, selecting")
-                    voiceState = voiceState.copy(groqApiKeyStatus = ApiKeyStatus.SAVED)
-                    selectEngine(engine)
-                } else {
-                    // Show API key input
-                    Log.d(TAG, "Groq needs API key, showing input")
-                    voiceState = voiceState.copy(
-                        showApiKeyInputFor = "groq"
-                    ).clearError()
-                    voiceInputView?.updateState(voiceState)
+        btnEnglish?.setOnClickListener { selectLanguage(Language.ENGLISH) }
+        btnBengali?.setOnClickListener { selectLanguage(Language.BENGALI) }
+
+        micButton?.setOnClickListener { handleMicClick() }
+
+        btnInsertText?.setOnClickListener {
+            resultText?.text?.toString()?.let { text ->
+                if (text.isNotBlank()) {
+                    currentInputConnection?.commitText(text, 1)
+                    resultCard?.visibility = View.GONE
                 }
             }
-            "gemini" -> {
-                if (preferencesManager.hasGeminiApiKey()) {
-                    Log.d(TAG, "Gemini has API key, selecting")
-                    voiceState = voiceState.copy(geminiApiKeyStatus = ApiKeyStatus.SAVED)
-                    selectEngine(engine)
-                } else {
-                    // Show API key input
-                    Log.d(TAG, "Gemini needs API key, showing input")
-                    voiceState = voiceState.copy(
-                        showApiKeyInputFor = "gemini"
-                    ).clearError()
-                    voiceInputView?.updateState(voiceState)
-                }
-            }
         }
+
+        // Update UI based on current state
+        updateEngineUI()
+        updateLanguageUI()
+        updateBadges()
+
+        return voicePanel!!
     }
 
-    /**
-     * Handle API key entered
-     */
-    private fun handleApiKeyEntered(engine: String, apiKey: String) {
-        Log.d(TAG, "=== API key entered for: $engine ===")
-
-        if (apiKey.isBlank()) {
-            Log.e(TAG, "API key is blank!")
-            voiceState = voiceState.withError(
-                title = "Invalid Input",
-                message = "API Key cannot be empty",
-                type = ErrorType.INVALID_KEY
-            )
-            voiceInputView?.updateState(voiceState)
-            return
-        }
-
-        // Save the key synchronously
-        val saved = when (engine) {
-            "groq" -> {
-                val success = preferencesManager.setGroqApiKey(apiKey)
-                Log.d(TAG, "Groq API key saved: $success, hasKey=${preferencesManager.hasGroqApiKey()}")
-                success
-            }
-            "gemini" -> {
-                val success = preferencesManager.setGeminiApiKey(apiKey)
-                Log.d(TAG, "Gemini API key saved: $success, hasKey=${preferencesManager.hasGeminiApiKey()}")
-                success
-            }
-            else -> false
-        }
-
-        if (!saved) {
-            Log.e(TAG, "Failed to save API key!")
-            voiceState = voiceState.withError(
-                title = "Save Failed",
-                message = "Failed to save API key",
-                type = ErrorType.UNKNOWN
-            )
-            voiceInputView?.updateState(voiceState)
-            return
-        }
-
-        // Select the engine with proper status
-        selectEngineWithStatus(engine)
-
-        Toast.makeText(this, "$engine API Key saved!", Toast.LENGTH_SHORT).show()
-        Log.d(TAG, "=== API key flow complete for: $engine ===")
-    }
-
-    /**
-     * Select an engine (simple version - just saves and updates state)
-     */
     private fun selectEngine(engine: String) {
+        selectedEngine = engine
         preferencesManager.setSttEngine(engine)
-        voiceState = voiceState.copy(
-            selectedEngine = engine,
-            showApiKeyInputFor = null,
-            statusMessage = getReadyMessage(engine)
-        ).clearError()
-        voiceInputView?.updateState(voiceState)
-        Log.d(TAG, "Engine selected and saved: $engine")
+        updateEngineUI()
+        hideError()
+        updateStatus()
+        Log.d(TAG, "Engine selected: $engine")
     }
 
-    /**
-     * Select engine after API key is saved (updates API key status too)
-     */
-    private fun selectEngineWithStatus(engine: String) {
-        preferencesManager.setSttEngine(engine)
-
-        voiceState = voiceState.copy(
-            selectedEngine = engine,
-            showApiKeyInputFor = null,
-            groqApiKeyStatus = if (engine == "groq" || preferencesManager.hasGroqApiKey()) ApiKeyStatus.SAVED else voiceState.groqApiKeyStatus,
-            geminiApiKeyStatus = if (engine == "gemini" || preferencesManager.hasGeminiApiKey()) ApiKeyStatus.SAVED else voiceState.geminiApiKeyStatus,
-            statusMessage = getReadyMessage(engine)
-        ).clearError()
-        voiceInputView?.updateState(voiceState)
-        Log.d(TAG, "Engine selected with status: $engine, groqStatus=${voiceState.groqApiKeyStatus}, geminiStatus=${voiceState.geminiApiKeyStatus}")
+    private fun handleGroqClick() {
+        if (preferencesManager.hasGroqApiKey()) {
+            selectEngine("groq")
+        } else {
+            showApiKeyInput("groq")
+        }
     }
 
-    /**
-     * Get ready message for an engine (engine is ready to use)
-     */
-    private fun getReadyMessage(engine: String): String {
-        return when (engine) {
+    private fun handleGeminiClick() {
+        if (preferencesManager.hasGeminiApiKey()) {
+            selectEngine("gemini")
+        } else {
+            showApiKeyInput("gemini")
+        }
+    }
+
+    private fun showApiKeyInput(engine: String) {
+        // Hide both first
+        apiKeyGroqContainer?.visibility = View.GONE
+        apiKeyGeminiContainer?.visibility = View.GONE
+
+        // Show the requested one
+        if (engine == "groq") {
+            apiKeyGroqContainer?.visibility = View.VISIBLE
+            apiKeyGroqInput?.requestFocus()
+        } else {
+            apiKeyGeminiContainer?.visibility = View.VISIBLE
+            apiKeyGeminiInput?.requestFocus()
+        }
+    }
+
+    private fun saveGroqApiKey() {
+        val key = apiKeyGroqInput?.text?.toString()?.trim() ?: ""
+        if (key.isEmpty()) {
+            showError("Invalid Input", "API Key cannot be empty", null)
+            return
+        }
+        preferencesManager.setGroqApiKey(key)
+        apiKeyGroqContainer?.visibility = View.GONE
+        updateBadges()
+        selectEngine("groq")
+        Toast.makeText(this, "Groq API Key saved!", Toast.LENGTH_SHORT).show()
+    }
+
+    private fun saveGeminiApiKey() {
+        val key = apiKeyGeminiInput?.text?.toString()?.trim() ?: ""
+        if (key.isEmpty()) {
+            showError("Invalid Input", "API Key cannot be empty", null)
+            return
+        }
+        preferencesManager.setGeminiApiKey(key)
+        apiKeyGeminiContainer?.visibility = View.GONE
+        updateBadges()
+        selectEngine("gemini")
+        Toast.makeText(this, "Gemini API Key saved!", Toast.LENGTH_SHORT).show()
+    }
+
+    private fun updateEngineUI() {
+        // Reset all cards
+        cardAndroid?.setBackgroundResource(R.drawable.engine_card_bg)
+        cardGroq?.setBackgroundResource(R.drawable.engine_card_bg)
+        cardGemini?.setBackgroundResource(R.drawable.engine_card_bg)
+        radioAndroid?.setBackgroundResource(R.drawable.radio_unselected)
+        radioGroq?.setBackgroundResource(R.drawable.radio_unselected)
+        radioGemini?.setBackgroundResource(R.drawable.radio_unselected)
+
+        // Set selected
+        when (selectedEngine) {
+            "android" -> {
+                cardAndroid?.setBackgroundResource(R.drawable.engine_card_selected_bg)
+                radioAndroid?.setBackgroundResource(R.drawable.radio_selected_android)
+                micButtonBg?.setBackgroundResource(R.drawable.mic_btn_bg)
+            }
+            "groq" -> {
+                cardGroq?.setBackgroundResource(R.drawable.engine_card_selected_groq)
+                radioGroq?.setBackgroundResource(R.drawable.radio_selected_groq)
+                micButtonBg?.setBackgroundResource(R.drawable.mic_btn_groq_bg)
+            }
+            "gemini" -> {
+                cardGemini?.setBackgroundResource(R.drawable.engine_card_selected_gemini)
+                radioGemini?.setBackgroundResource(R.drawable.radio_selected_gemini)
+                micButtonBg?.setBackgroundResource(R.drawable.mic_btn_gemini_bg)
+            }
+        }
+    }
+
+    private fun updateBadges() {
+        if (preferencesManager.hasGroqApiKey()) {
+            badgeGroq?.text = "✓ Ready"
+            badgeGroq?.setTextColor(Color.parseColor("#4CAF50"))
+        } else {
+            badgeGroq?.text = "Key Required"
+            badgeGroq?.setTextColor(Color.parseColor("#888888"))
+        }
+
+        if (preferencesManager.hasGeminiApiKey()) {
+            badgeGemini?.text = "✓ Ready"
+            badgeGemini?.setTextColor(Color.parseColor("#4CAF50"))
+        } else {
+            badgeGemini?.text = "Key Required"
+            badgeGemini?.setTextColor(Color.parseColor("#888888"))
+        }
+    }
+
+    private fun updateLanguageUI() {
+        if (currentLanguage == Language.ENGLISH) {
+            btnEnglish?.setBackgroundResource(R.drawable.lang_btn_selected_bg)
+            btnEnglish?.setTextColor(Color.WHITE)
+            btnBengali?.setBackgroundResource(R.drawable.lang_btn_bg)
+            btnBengali?.setTextColor(Color.parseColor("#888888"))
+        } else {
+            btnBengali?.setBackgroundResource(R.drawable.lang_btn_selected_bg)
+            btnBengali?.setTextColor(Color.WHITE)
+            btnEnglish?.setBackgroundResource(R.drawable.lang_btn_bg)
+            btnEnglish?.setTextColor(Color.parseColor("#888888"))
+        }
+    }
+
+    private fun selectLanguage(language: Language) {
+        currentLanguage = language
+        preferencesManager.setLanguage(language.code)
+        updateLanguageUI()
+    }
+
+    private fun updateStatus() {
+        val msg = when (selectedEngine) {
             "android" -> "🟢 Android ready - Tap mic to speak"
-            "groq" -> "🔵 Groq ready - Tap mic to speak"
-            "gemini" -> "🟣 Gemini ready - Tap mic to speak"
+            "groq" -> if (preferencesManager.hasGroqApiKey()) "🔵 Groq ready - Tap mic to speak" else "⚠️ Enter Groq API Key first"
+            "gemini" -> if (preferencesManager.hasGeminiApiKey()) "🟣 Gemini ready - Tap mic to speak" else "⚠️ Enter Gemini API Key first"
             else -> "Select an engine"
         }
+        statusText?.text = msg
     }
 
-    /**
-     * Handle mic button click
-     */
+    // ==================== MIC & RECORDING ====================
+
     private fun handleMicClick() {
-        Log.d(TAG, "=== handleMicClick called, isRecording=$isRecording ===")
         if (isRecording) {
-            Log.d(TAG, "Stopping recording...")
             stopRecording()
         } else {
-            Log.d(TAG, "Starting recording...")
             startRecording()
         }
     }
 
-    /**
-     * Handle language change
-     */
-    private fun handleLanguageChange(language: Language) {
-        preferencesManager.setLanguage(language.code)
-        voiceState = voiceState.copy(currentLanguage = language)
-        voiceInputView?.updateState(voiceState)
-    }
-
-    /**
-     * Start recording
-     */
     private fun startRecording() {
-        val engine = voiceState.selectedEngine
-        Log.d(TAG, "=== startRecording called, engine=$engine ===")
-        Log.d(TAG, "groqApiKeyStatus=${voiceState.groqApiKeyStatus}, geminiApiKeyStatus=${voiceState.geminiApiKeyStatus}")
-        Log.d(TAG, "hasGroqApiKey=${preferencesManager.hasGroqApiKey()}, hasGeminiApiKey=${preferencesManager.hasGeminiApiKey()}")
-
-        // Validate API key for Groq/Gemini
-        when (engine) {
+        // Check API key for Groq/Gemini
+        when (selectedEngine) {
             "groq" -> {
                 if (!preferencesManager.hasGroqApiKey()) {
-                    Log.e(TAG, "Groq API key NOT found!")
-                    voiceState = voiceState.copy(
-                        showApiKeyInputFor = "groq"
-                    ).withError(
-                        title = "API Key Required",
-                        message = "Please enter your Groq API key first",
-                        type = ErrorType.AUTH
-                    )
-                    voiceInputView?.updateState(voiceState)
+                    showError("API Key Required", "Please enter your Groq API key first", null)
+                    showApiKeyInput("groq")
                     return
                 }
-                Log.d(TAG, "Groq API key found, proceeding")
             }
             "gemini" -> {
                 if (!preferencesManager.hasGeminiApiKey()) {
-                    Log.e(TAG, "Gemini API key NOT found!")
-                    voiceState = voiceState.copy(
-                        showApiKeyInputFor = "gemini"
-                    ).withError(
-                        title = "API Key Required",
-                        message = "Please enter your Gemini API key first",
-                        type = ErrorType.AUTH
-                    )
-                    voiceInputView?.updateState(voiceState)
+                    showError("API Key Required", "Please enter your Gemini API key first", null)
+                    showApiKeyInput("gemini")
                     return
                 }
-                Log.d(TAG, "Gemini API key found, proceeding")
             }
         }
 
         // Check permission
-        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)
-            != PackageManager.PERMISSION_GRANTED
-        ) {
-            Log.e(TAG, "RECORD_AUDIO permission NOT granted!")
-            voiceState = voiceState.withError(
-                title = "Permission Required",
-                message = "Microphone permission is required for voice typing",
-                type = ErrorType.PERMISSION,
-                details = "Please grant microphone permission in Settings > Apps > AI Voice Keyboard > Permissions"
-            )
-            voiceInputView?.updateState(voiceState)
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            showError("Permission Required", "Microphone permission is required", null)
             return
         }
 
-        Log.d(TAG, "All checks passed, starting recording for $engine")
         isRecording = true
-        voiceState = voiceState.copy(
-            isRecording = true,
-            statusMessage = "🔴 Recording with ${voiceState.getEngineDisplayName()}..."
-        ).clearError()
-        voiceInputView?.updateState(voiceState)
+        micButtonBg?.setBackgroundResource(R.drawable.mic_btn_recording_bg)
+        statusText?.text = "🔴 Recording... Tap mic to stop"
+        hideError()
+        resultCard?.visibility = View.GONE
 
-        when (engine) {
+        when (selectedEngine) {
             "android" -> startAndroidSpeechRecognizer()
             "groq" -> startGroqRecording()
             "gemini" -> startGeminiRecording()
         }
     }
 
-    /**
-     * Start Android Speech Recognizer
-     */
     private fun startAndroidSpeechRecognizer() {
         if (!SpeechRecognizer.isRecognitionAvailable(this)) {
-            stopRecordingWithError(
-                title = "Not Available",
-                message = "Speech recognition is not available on this device",
-                type = ErrorType.UNKNOWN
-            )
+            stopRecordingWithError("Not Available", "Speech recognition not available on this device", null)
             return
         }
 
         speechRecognizer = SpeechRecognizer.createSpeechRecognizer(this).apply {
             setRecognitionListener(object : RecognitionListener {
                 override fun onReadyForSpeech(params: Bundle?) {
-                    voiceState = voiceState.copy(statusMessage = "Listening... Speak now")
-                    voiceInputView?.updateState(voiceState)
+                    statusText?.text = "Listening... Speak now"
                 }
-
                 override fun onBeginningOfSpeech() {}
                 override fun onRmsChanged(rmsdB: Float) {}
                 override fun onBufferReceived(buffer: ByteArray?) {}
-
                 override fun onEndOfSpeech() {
-                    voiceState = voiceState.copy(statusMessage = "Processing...")
-                    voiceInputView?.updateState(voiceState)
+                    statusText?.text = "Processing..."
                 }
-
                 override fun onError(error: Int) {
-                    val (errorType, errorMessage, errorDetails) = getSpeechErrorInfo(error)
-                    stopRecordingWithError(
-                        title = "Speech Error",
-                        message = errorMessage,
-                        type = errorType,
-                        details = errorDetails
-                    )
+                    stopRecordingWithError("Speech Error", getSpeechErrorText(error), null)
                 }
-
                 override fun onResults(results: Bundle?) {
                     val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
                     if (!matches.isNullOrEmpty()) {
                         showResult(matches[0])
                     } else {
-                        stopRecordingWithError(
-                            title = "No Speech",
-                            message = "No speech was detected",
-                            type = ErrorType.EMPTY_RESULT
-                        )
+                        stopRecordingWithError("No Speech", "No speech detected", null)
                     }
                 }
-
                 override fun onPartialResults(partialResults: Bundle?) {
                     val matches = partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
                     if (!matches.isNullOrEmpty()) {
-                        voiceState = voiceState.copy(statusMessage = matches[0])
-                        voiceInputView?.updateState(voiceState)
+                        statusText?.text = matches[0]
                     }
                 }
-
                 override fun onEvent(eventType: Int, params: Bundle?) {}
             })
         }
 
         val intent = android.content.Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE, voiceState.currentLanguage.localeCode)
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE, currentLanguage.localeCode)
             putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
         }
-
         speechRecognizer?.startListening(intent)
     }
 
     private fun startGroqRecording() {
         val audioFile = audioRecorder?.startRecording()
         if (audioFile == null) {
-            stopRecordingWithError(
-                title = "Recording Failed",
-                message = "Could not start audio recording",
-                type = ErrorType.NO_AUDIO,
-                details = "The audio recorder failed to initialize. Please check microphone permissions."
-            )
+            stopRecordingWithError("Recording Failed", "Could not start recording", null)
             return
         }
-        voiceState = voiceState.copy(statusMessage = "🔵 Recording... Tap mic to stop")
-        voiceInputView?.updateState(voiceState)
     }
 
     private fun startGeminiRecording() {
         val audioFile = audioRecorder?.startRecording()
         if (audioFile == null) {
-            stopRecordingWithError(
-                title = "Recording Failed",
-                message = "Could not start audio recording",
-                type = ErrorType.NO_AUDIO,
-                details = "The audio recorder failed to initialize. Please check microphone permissions."
-            )
+            stopRecordingWithError("Recording Failed", "Could not start recording", null)
             return
         }
-        voiceState = voiceState.copy(statusMessage = "🟣 Recording... Tap mic to stop")
-        voiceInputView?.updateState(voiceState)
     }
 
-    /**
-     * Stop recording
-     */
     private fun stopRecording() {
         isRecording = false
+        updateEngineUI()
 
-        if (voiceState.selectedEngine == "android") {
+        if (selectedEngine == "android") {
             speechRecognizer?.stopListening()
             speechRecognizer?.destroy()
             speechRecognizer = null
-            voiceState = voiceState.copy(
-                isRecording = false,
-                statusMessage = getReadyMessage(voiceState.selectedEngine)
-            )
-            voiceInputView?.updateState(voiceState)
+            updateStatus()
         } else {
             val audioFile = audioRecorder?.stopRecording()
-
             if (audioFile != null && audioFile.exists() && audioFile.length() > 0) {
-                voiceState = voiceState.copy(
-                    statusMessage = "Transcribing...",
-                    isRecording = false
-                )
-                voiceInputView?.updateState(voiceState)
-
+                statusText?.text = "Transcribing..."
                 CoroutineScope(Dispatchers.IO).launch {
-                    val result = if (voiceState.selectedEngine == "gemini") {
-                        geminiLiveApi.transcribe(audioFile, voiceState.currentLanguage.code)
+                    val result = if (selectedEngine == "gemini") {
+                        geminiLiveApi.transcribe(audioFile, currentLanguage.code)
                     } else {
-                        groqWhisperApi.transcribe(audioFile, voiceState.currentLanguage.code)
+                        groqWhisperApi.transcribe(audioFile, currentLanguage.code)
                     }
-
                     withContext(Dispatchers.Main) {
                         handleTranscriptionResult(result)
                     }
                     audioFile.delete()
                 }
             } else {
-                stopRecordingWithError(
-                    title = "No Audio",
-                    message = "No audio was recorded",
-                    type = ErrorType.NO_AUDIO,
-                    details = "The recording file is empty or missing. Please try again."
-                )
+                stopRecordingWithError("No Audio", "No audio was recorded", null)
             }
         }
     }
 
-    /**
-     * Handle transcription result with detailed error handling
-     */
     private fun handleTranscriptionResult(result: ApiTranscriptionResult) {
         if (result.isSuccess && result.text != null) {
             showResult(result.text)
         } else {
-            // Show detailed error
-            val engineName = voiceState.getEngineDisplayName()
             stopRecordingWithError(
-                title = "$engineName Error",
-                message = result.errorMessage ?: "Transcription failed",
-                type = result.errorType ?: ErrorType.UNKNOWN,
-                details = result.errorDetails
+                "${selectedEngine.replaceFirstChar { it.uppercase() }} Error",
+                result.errorMessage ?: "Transcription failed",
+                result.errorDetails
             )
         }
     }
 
-    private fun stopRecordingWithError(
-        title: String,
-        message: String,
-        type: String = ErrorType.UNKNOWN,
-        details: String? = null
-    ) {
+    private fun stopRecordingWithError(title: String, message: String?, details: String?) {
         isRecording = false
         speechRecognizer?.destroy()
         speechRecognizer = null
-        voiceState = voiceState.withError(
-            title = title,
-            message = message,
-            type = type,
-            details = details
-        ).copy(
-            statusMessage = getStatusMessage(voiceState.selectedEngine)
-        )
-        voiceInputView?.updateState(voiceState)
+        updateEngineUI()
+        showError(title, message ?: "Unknown error", details)
+        updateStatus()
     }
 
     private fun showResult(text: String) {
         isRecording = false
-        voiceState = voiceState.copy(
-            isRecording = false,
-            showResult = true,
-            resultText = text,
-            statusMessage = "✓ Transcription complete"
-        ).clearError()
-        voiceInputView?.updateState(voiceState)
+        updateEngineUI()
+        resultText?.text = text
+        resultCard?.visibility = View.VISIBLE
+        statusText?.text = "✓ Transcription complete"
+        hideError()
     }
 
-    /**
-     * Get speech error info: Triple(errorType, message, details)
-     */
-    private fun getSpeechErrorInfo(error: Int): Triple<String, String, String?> {
+    private fun getSpeechErrorText(error: Int): String {
         return when (error) {
-            SpeechRecognizer.ERROR_AUDIO -> Triple(
-                ErrorType.NO_AUDIO,
-                "Audio recording error",
-                "Error code: ERROR_AUDIO ($error)\nThe microphone may be in use by another app."
-            )
-            SpeechRecognizer.ERROR_CLIENT -> Triple(
-                ErrorType.UNKNOWN,
-                "Client error",
-                "Error code: ERROR_CLIENT ($error)\nA client-side error occurred."
-            )
-            SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> Triple(
-                ErrorType.PERMISSION,
-                "Permission denied",
-                "Error code: ERROR_INSUFFICIENT_PERMISSIONS ($error)\nPlease grant microphone permission."
-            )
-            SpeechRecognizer.ERROR_NETWORK -> Triple(
-                ErrorType.NETWORK,
-                "Network error",
-                "Error code: ERROR_NETWORK ($error)\nPlease check your internet connection."
-            )
-            SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> Triple(
-                ErrorType.TIMEOUT,
-                "Network timeout",
-                "Error code: ERROR_NETWORK_TIMEOUT ($error)\nThe network request timed out."
-            )
-            SpeechRecognizer.ERROR_NO_MATCH -> Triple(
-                ErrorType.EMPTY_RESULT,
-                "No speech detected",
-                "Error code: ERROR_NO_MATCH ($error)\nPlease speak clearly and try again."
-            )
-            SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> Triple(
-                ErrorType.EMPTY_RESULT,
-                "No speech detected",
-                "Error code: ERROR_SPEECH_TIMEOUT ($error)\nNo speech was detected within the timeout period."
-            )
-            SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> Triple(
-                ErrorType.UNKNOWN,
-                "Recognizer busy",
-                "Error code: ERROR_RECOGNIZER_BUSY ($error)\nThe speech recognizer is busy. Please try again."
-            )
-            SpeechRecognizer.ERROR_SERVER -> Triple(
-                ErrorType.SERVER,
-                "Server error",
-                "Error code: ERROR_SERVER ($error)\nThe speech recognition server encountered an error."
-            )
-            else -> Triple(
-                ErrorType.UNKNOWN,
-                "Unknown error",
-                "Error code: $error"
-            )
+            SpeechRecognizer.ERROR_AUDIO -> "Audio error"
+            SpeechRecognizer.ERROR_CLIENT -> "Client error"
+            SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "Permission denied"
+            SpeechRecognizer.ERROR_NETWORK -> "Network error"
+            SpeechRecognizer.ERROR_NO_MATCH -> "No speech detected"
+            SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "No speech detected"
+            else -> "Error: $error"
         }
+    }
+
+    // ==================== ERROR DISPLAY ====================
+
+    private fun showError(title: String, message: String, details: String?) {
+        errorTitle?.text = "❌ $title"
+        errorMessage?.text = message
+        errorDetails?.text = details ?: ""
+        errorContainer?.visibility = View.VISIBLE
+        errorDetails?.visibility = View.GONE
+        btnToggleDetails?.text = "Details"
+    }
+
+    private fun hideError() {
+        errorContainer?.visibility = View.GONE
+    }
+
+    private fun copyErrorToClipboard() {
+        val title = errorTitle?.text ?: ""
+        val msg = errorMessage?.text ?: ""
+        val details = errorDetails?.text ?: ""
+
+        val clipboard = getSystemService(CLIPBOARD_SERVICE) as ClipboardManager
+        val clip = ClipData.newPlainText("Error", "$title\n$msg\n$details")
+        clipboard.setPrimaryClip(clip)
+        Toast.makeText(this, "Error copied to clipboard!", Toast.LENGTH_SHORT).show()
     }
 
     // ==================== TRANSLATE PANEL ====================
@@ -712,31 +643,14 @@ class AiKeyboardService : InputMethodService() {
         return LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(16, 12, 16, 12)
+            setBackgroundColor(Color.parseColor("#1A1A2E"))
 
-            val translateView = TranslateView.create(
-                context = this@AiKeyboardService,
-                onTranslate = { text, source, target -> performTranslation(text, source, target) },
-                onLanguageChange = { },
-                onInsertText = { text -> insertText(text) }
-            )
-            addView(translateView)
-        }
-    }
-
-    private fun performTranslation(text: String, source: Language, target: Language) {
-        CoroutineScope(Dispatchers.IO).launch {
-            val result = zAiApi.translate(text, source.code, target.code)
-
-            withContext(Dispatchers.Main) {
-                result.fold(
-                    onSuccess = { translatedText ->
-                        Toast.makeText(this@AiKeyboardService, translatedText, Toast.LENGTH_SHORT).show()
-                    },
-                    onFailure = { error ->
-                        Toast.makeText(this@AiKeyboardService, "Error: ${error.message}", Toast.LENGTH_SHORT).show()
-                    }
-                )
-            }
+            addView(TextView(context).apply {
+                text = "🌐 Translate"
+                setTextColor(Color.WHITE)
+                textSize = 18f
+                gravity = Gravity.CENTER
+            })
         }
     }
 
@@ -746,13 +660,24 @@ class AiKeyboardService : InputMethodService() {
         return LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(8, 8, 8, 8)
+            setBackgroundColor(Color.parseColor("#1A1A2E"))
             gravity = Gravity.CENTER
 
-            val emojiView = EmojiView.create(
-                context = this@AiKeyboardService,
-                onEmojiClick = { emoji -> insertText(emoji) }
-            )
-            addView(emojiView)
+            val emojis = listOf("😀", "😂", "😍", "🥰", "😎", "🤔", "👍", "👎", "❤️", "🔥")
+            addView(LinearLayout(context).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER
+                emojis.forEach { emoji ->
+                    addView(Button(context).apply {
+                        text = emoji
+                        textSize = 24f
+                        setBackgroundColor(Color.TRANSPARENT)
+                        setOnClickListener {
+                            currentInputConnection?.commitText(emoji, 1)
+                        }
+                    })
+                }
+            })
         }
     }
 
@@ -778,12 +703,6 @@ class AiKeyboardService : InputMethodService() {
                 textSize = 12f
             })
         }
-    }
-
-    // ==================== HELPERS ====================
-
-    private fun insertText(text: String) {
-        currentInputConnection?.commitText(text, 1)
     }
 
     private fun createErrorView(message: String): View {

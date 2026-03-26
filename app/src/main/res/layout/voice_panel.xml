@@ -1,0 +1,477 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="#1A1A2E"
+    android:padding="12dp">
+
+    <!-- Title -->
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="🎤 Voice Typing"
+        android:textColor="#FFFFFF"
+        android:textSize="18sp"
+        android:textStyle="bold"
+        android:gravity="center"
+        android:paddingBottom="8dp" />
+
+    <!-- Android Engine Card -->
+    <LinearLayout
+        android:id="@+id/cardAndroid"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:background="@drawable/engine_card_bg"
+        android:padding="12dp"
+        android:layout_marginBottom="6dp"
+        android:gravity="center_vertical"
+        android:clickable="true"
+        android:focusable="true">
+
+        <View
+            android:id="@+id/radioAndroid"
+            android:layout_width="22dp"
+            android:layout_height="22dp"
+            android:layout_marginEnd="12dp"
+            android:background="@drawable/radio_unselected" />
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="🟢 Android (Offline)"
+                android:textColor="#FFFFFF"
+                android:textSize="15sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Free • Works without internet"
+                android:textColor="#888888"
+                android:textSize="12sp" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <!-- Groq Engine Card -->
+    <LinearLayout
+        android:id="@+id/cardGroq"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:background="@drawable/engine_card_bg"
+        android:padding="12dp"
+        android:layout_marginBottom="6dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:clickable="true"
+            android:focusable="true">
+
+            <View
+                android:id="@+id/radioGroq"
+                android:layout_width="22dp"
+                android:layout_height="22dp"
+                android:layout_marginEnd="12dp"
+                android:background="@drawable/radio_unselected" />
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="🔵 Groq (Online)"
+                        android:textColor="#FFFFFF"
+                        android:textSize="15sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/badgeGroq"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Key Required"
+                        android:textColor="#888888"
+                        android:textSize="9sp"
+                        android:padding="2dp"
+                        android:layout_marginStart="8dp"
+                        android:background="#333333" />
+                </LinearLayout>
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Fast & accurate transcription"
+                    android:textColor="#888888"
+                    android:textSize="12sp" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- API Key Input (hidden by default) -->
+        <LinearLayout
+            android:id="@+id/apiKeyGroqContainer"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:layout_marginStart="34dp"
+            android:layout_marginTop="8dp"
+            android:visibility="gone">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical">
+
+                <EditText
+                    android:id="@+id/apiKeyGroqInput"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:hint="Paste your API key"
+                    android:textColorHint="#666666"
+                    android:textColor="#FFFFFF"
+                    android:textSize="13sp"
+                    android:padding="10dp"
+                    android:background="@drawable/input_bg"
+                    android:singleLine="true"
+                    android:imeOptions="actionDone"
+                    android:layout_marginEnd="8dp" />
+
+                <Button
+                    android:id="@+id/btnSaveGroqKey"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Save"
+                    android:textColor="#FFFFFF"
+                    android:textSize="12sp"
+                    android:padding="8dp"
+                    android:minHeight="0dp"
+                    android:background="@drawable/btn_groq_bg" />
+            </LinearLayout>
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Get key: console.groq.com/keys"
+                android:textColor="#666666"
+                android:textSize="10sp"
+                android:layout_marginTop="4dp" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <!-- Gemini Engine Card -->
+    <LinearLayout
+        android:id="@+id/cardGemini"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:background="@drawable/engine_card_bg"
+        android:padding="12dp"
+        android:layout_marginBottom="6dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:clickable="true"
+            android:focusable="true">
+
+            <View
+                android:id="@+id/radioGemini"
+                android:layout_width="22dp"
+                android:layout_height="22dp"
+                android:layout_marginEnd="12dp"
+                android:background="@drawable/radio_unselected" />
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="🟣 Gemini (Live)"
+                        android:textColor="#FFFFFF"
+                        android:textSize="15sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/badgeGemini"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Key Required"
+                        android:textColor="#888888"
+                        android:textSize="9sp"
+                        android:padding="2dp"
+                        android:layout_marginStart="8dp"
+                        android:background="#333333" />
+                </LinearLayout>
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Real-time streaming transcription"
+                    android:textColor="#888888"
+                    android:textSize="12sp" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- API Key Input (hidden by default) -->
+        <LinearLayout
+            android:id="@+id/apiKeyGeminiContainer"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:layout_marginStart="34dp"
+            android:layout_marginTop="8dp"
+            android:visibility="gone">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical">
+
+                <EditText
+                    android:id="@+id/apiKeyGeminiInput"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:hint="Paste your API key"
+                    android:textColorHint="#666666"
+                    android:textColor="#FFFFFF"
+                    android:textSize="13sp"
+                    android:padding="10dp"
+                    android:background="@drawable/input_bg"
+                    android:singleLine="true"
+                    android:imeOptions="actionDone"
+                    android:layout_marginEnd="8dp" />
+
+                <Button
+                    android:id="@+id/btnSaveGeminiKey"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Save"
+                    android:textColor="#FFFFFF"
+                    android:textSize="12sp"
+                    android:padding="8dp"
+                    android:minHeight="0dp"
+                    android:background="@drawable/btn_gemini_bg" />
+            </LinearLayout>
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Get key: aistudio.google.com/apikey"
+                android:textColor="#666666"
+                android:textSize="10sp"
+                android:layout_marginTop="4dp" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <!-- Error Display -->
+    <LinearLayout
+        android:id="@+id/errorContainer"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:background="@drawable/error_bg"
+        android:padding="12dp"
+        android:layout_marginTop="8dp"
+        android:visibility="gone">
+
+        <TextView
+            android:id="@+id/errorTitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="❌ Error"
+            android:textColor="#FF5252"
+            android:textSize="14sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/errorMessage"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text=""
+            android:textColor="#FFFFFF"
+            android:textSize="13sp"
+            android:layout_marginTop="8dp" />
+
+        <TextView
+            android:id="@+id/errorDetails"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text=""
+            android:textColor="#B0BEC5"
+            android:textSize="11sp"
+            android:fontFamily="monospace"
+            android:layout_marginTop="6dp"
+            android:visibility="gone" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="end"
+            android:layout_marginTop="10dp">
+
+            <Button
+                android:id="@+id/btnToggleDetails"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Details"
+                android:textColor="#B0BEC5"
+                android:textSize="11sp"
+                android:background="@android:color/transparent"
+                android:padding="4dp"
+                android:minHeight="0dp" />
+
+            <Button
+                android:id="@+id/btnCopyError"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="📋 Copy Error"
+                android:textColor="#FFFFFF"
+                android:textSize="11sp"
+                android:padding="6dp"
+                android:minHeight="0dp"
+                android:background="@drawable/btn_error_bg" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <!-- Language Switcher -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center"
+        android:layout_marginTop="8dp"
+        android:layout_marginBottom="12dp">
+
+        <Button
+            android:id="@+id/btnEnglish"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="English"
+            android:textColor="#888888"
+            android:textSize="12sp"
+            android:padding="8dp"
+            android:minHeight="0dp"
+            android:background="@drawable/lang_btn_bg" />
+
+        <View
+            android:layout_width="16dp"
+            android:layout_height="1dp" />
+
+        <Button
+            android:id="@+id/btnBengali"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="বাংলা"
+            android:textColor="#888888"
+            android:textSize="12sp"
+            android:padding="8dp"
+            android:minHeight="0dp"
+            android:background="@drawable/lang_btn_bg" />
+    </LinearLayout>
+
+    <!-- Mic Button -->
+    <FrameLayout
+        android:id="@+id/micButton"
+        android:layout_width="80dp"
+        android:layout_height="80dp"
+        android:layout_gravity="center"
+        android:clickable="true"
+        android:focusable="true">
+
+        <LinearLayout
+            android:layout_width="72dp"
+            android:layout_height="72dp"
+            android:layout_gravity="center"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:background="@drawable/mic_btn_bg">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="🎤"
+                android:textSize="32sp"
+                android:gravity="center" />
+        </LinearLayout>
+    </FrameLayout>
+
+    <!-- Status Text -->
+    <TextView
+        android:id="@+id/statusText"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Select an engine and tap to speak"
+        android:textColor="#888888"
+        android:textSize="13sp"
+        android:gravity="center"
+        android:layout_marginTop="8dp" />
+
+    <!-- Result Card -->
+    <LinearLayout
+        android:id="@+id/resultCard"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:background="@drawable/result_bg"
+        android:padding="12dp"
+        android:layout_marginTop="12dp"
+        android:visibility="gone">
+
+        <TextView
+            android:id="@+id/resultText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text=""
+            android:textColor="#FFFFFF"
+            android:textSize="14sp" />
+
+        <Button
+            android:id="@+id/btnInsertText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="✓ Insert Text"
+            android:textColor="#4CAF50"
+            android:textSize="12sp"
+            android:background="#FFFFFF"
+            android:padding="8dp"
+            android:layout_marginTop="8dp"
+            android:minHeight="0dp" />
+    </LinearLayout>
+
+</LinearLayout>
