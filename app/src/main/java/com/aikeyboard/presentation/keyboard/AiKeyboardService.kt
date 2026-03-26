@@ -208,7 +208,7 @@ class AiKeyboardService : InputMethodService() {
 
             voiceInputView = VoiceInputView.create(this@AiKeyboardService).apply {
                 onEngineSelected = { engine -> handleEngineSelection(engine) }
-                onApiKeyEntered = { engine, key -> handleApiKeyEntered(engine, key) }
+                onApiKeySaved = { engine, key -> handleApiKeyEntered(engine, key) }
                 onMicClicked = { handleMicClick() }
                 onLanguageChanged = { language -> handleLanguageChange(language) }
                 onInsertText = { text -> insertText(text) }
