@@ -50,12 +50,6 @@ jobs:
     if: github.ref == 'refs/heads/main'
 
     steps:
-    - name: Download APK
-      uses: actions/download-artifact@v4
-      with:
-        name: app-debug
-        path: apk
-
     - name: Checkout code
       uses: actions/checkout@v4
 
@@ -64,6 +58,15 @@ jobs:
       run: |
         VERSION=$(grep 'versionName' app/build.gradle.kts | sed 's/.*versionName = "\([^"]*\)".*/\1/')
         echo "tag=v$VERSION" >> $GITHUB_OUTPUT
+
+    - name: Download APK
+      uses: actions/download-artifact@v4
+      with:
+        name: app-debug
+        path: apk
+
+    - name: List APK files
+      run: ls -la apk/
 
     - name: Create Release
       uses: softprops/action-gh-release@v1
