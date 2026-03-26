@@ -180,7 +180,7 @@ class EngineCardView(
     /**
      * Set the selected state
      */
-    fun setSelected(selected: Boolean) {
+    fun setEngineSelected(selected: Boolean) {
         isSelected = selected
         container.background = createCardBackground(selected)
         radioCircle.background = createRadioBackground(selected)

@@ -40,12 +40,12 @@ class VoiceInputView(
     private var geminiCard: EngineCardView
 
     // Other UI components
-    private var micButton: FrameLayout
-    private var statusText: TextView
-    private var resultCard: LinearLayout
-    private var resultTextView: TextView
-    private var englishButton: Button
-    private var bengaliButton: Button
+    private lateinit var micButton: FrameLayout
+    private lateinit var statusText: TextView
+    private lateinit var resultCard: LinearLayout
+    private lateinit var resultTextView: TextView
+    private lateinit var englishButton: Button
+    private lateinit var bengaliButton: Button
 
     // Current state
     private var currentState: VoiceUiState? = null
@@ -136,10 +136,10 @@ class VoiceInputView(
         currentState = state
 
         // Update engine cards
-        androidCard.setSelected(state.isAndroidSelected)
-        groqCard.setSelected(state.isGroqSelected)
+        androidCard.setEngineSelected(state.isAndroidSelected)
+        groqCard.setEngineSelected(state.isGroqSelected)
         groqCard.setApiKeyStatus(state.groqApiKeyStatus)
-        geminiCard.setSelected(state.isGeminiSelected)
+        geminiCard.setEngineSelected(state.isGeminiSelected)
         geminiCard.setApiKeyStatus(state.geminiApiKeyStatus)
 
         // Show/hide API key input for specific engine
