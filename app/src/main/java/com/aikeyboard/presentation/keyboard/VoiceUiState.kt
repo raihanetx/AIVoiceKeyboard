@@ -30,8 +30,11 @@ data class VoiceUiState(
     // Current language for recognition
     val currentLanguage: Language = Language.ENGLISH,
 
-    // Error message if any
+    // Error fields for detailed error display
+    val errorTitle: String? = null,
     val errorMessage: String? = null,
+    val errorType: String? = null,  // "auth", "network", "timeout", "invalid_key", "rate_limit", "server", "no_audio", "empty_result"
+    val errorDetails: String? = null,
 
     // Which engine is showing API key input
     val showApiKeyInputFor: String? = null
@@ -67,6 +70,12 @@ data class VoiceUiState(
         get() = geminiApiKeyStatus == ApiKeyStatus.SAVED
 
     /**
+     * Check if there's an error to display
+     */
+    val hasError: Boolean
+        get() = errorMessage != null || errorType != null
+
+    /**
      * Get engine display name
      */
     fun getEngineDisplayName(): String {
@@ -89,6 +98,36 @@ data class VoiceUiState(
             else -> "⚪"
         }
     }
+
+    /**
+     * Create a copy with error set
+     */
+    fun withError(
+        title: String,
+        message: String,
+        type: String? = null,
+        details: String? = null
+    ): VoiceUiState {
+        return copy(
+            errorTitle = title,
+            errorMessage = message,
+            errorType = type,
+            errorDetails = details,
+            isRecording = false
+        )
+    }
+
+    /**
+     * Create a copy with error cleared
+     */
+    fun clearError(): VoiceUiState {
+        return copy(
+            errorTitle = null,
+            errorMessage = null,
+            errorType = null,
+            errorDetails = null
+        )
+    }
 }
 
 /**
@@ -97,4 +136,20 @@ data class VoiceUiState(
 enum class ApiKeyStatus {
     NONE,       // No key entered
     SAVED       // Key saved and ready to use
+}
+
+/**
+ * Error types for categorizing errors
+ */
+object ErrorType {
+    const val AUTH = "auth"              // Authentication failed
+    const val NETWORK = "network"        // Network connection error
+    const val TIMEOUT = "timeout"        // Request timed out
+    const val INVALID_KEY = "invalid_key" // Invalid API key
+    const val RATE_LIMIT = "rate_limit"  // Rate limit exceeded
+    const val SERVER = "server"          // Server error
+    const val NO_AUDIO = "no_audio"      // No audio recorded
+    const val EMPTY_RESULT = "empty_result" // No speech detected
+    const val PERMISSION = "permission"  // Permission denied
+    const val UNKNOWN = "unknown"        // Unknown error
 }

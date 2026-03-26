@@ -38,6 +38,7 @@ class VoiceInputView(context: Context) : LinearLayout(context) {
     // Other UI
     private lateinit var micButton: FrameLayout
     private lateinit var statusText: TextView
+    private lateinit var errorDisplay: ErrorDisplayView
     private lateinit var resultCard: LinearLayout
     private lateinit var resultTextView: TextView
     private lateinit var englishButton: Button
@@ -81,9 +82,9 @@ class VoiceInputView(context: Context) : LinearLayout(context) {
             engineColor = ContextCompat.getColor(context, R.color.engine_android),
             needsApiKey = false
         )
-        androidCard.onSelected = { 
+        androidCard.onSelected = {
             Log.d(TAG, "Android card selected")
-            onEngineSelected?.invoke("android") 
+            onEngineSelected?.invoke("android")
         }
         addView(androidCard)
 
@@ -97,13 +98,13 @@ class VoiceInputView(context: Context) : LinearLayout(context) {
             engineColor = ContextCompat.getColor(context, R.color.engine_groq),
             needsApiKey = true
         )
-        groqCard.onSelected = { 
+        groqCard.onSelected = {
             Log.d(TAG, "Groq card selected")
-            onEngineSelected?.invoke("groq") 
+            onEngineSelected?.invoke("groq")
         }
-        groqCard.onApiKeyEntered = { key -> 
+        groqCard.onApiKeyEntered = { key ->
             Log.d(TAG, "Groq API key entered: ${key.take(5)}...")
-            onApiKeySaved?.invoke("groq", key) 
+            onApiKeySaved?.invoke("groq", key)
         }
         addView(groqCard)
 
@@ -117,15 +118,19 @@ class VoiceInputView(context: Context) : LinearLayout(context) {
             engineColor = ContextCompat.getColor(context, R.color.engine_gemini),
             needsApiKey = true
         )
-        geminiCard.onSelected = { 
+        geminiCard.onSelected = {
             Log.d(TAG, "Gemini card selected")
-            onEngineSelected?.invoke("gemini") 
+            onEngineSelected?.invoke("gemini")
         }
-        geminiCard.onApiKeyEntered = { key -> 
+        geminiCard.onApiKeyEntered = { key ->
             Log.d(TAG, "Gemini API key entered: ${key.take(5)}...")
-            onApiKeySaved?.invoke("gemini", key) 
+            onApiKeySaved?.invoke("gemini", key)
         }
         addView(geminiCard)
+
+        // Error display
+        errorDisplay = ErrorDisplayView.create(context)
+        addView(errorDisplay)
 
         // Language switcher
         addView(LinearLayout(context).apply {
@@ -197,7 +202,7 @@ class VoiceInputView(context: Context) : LinearLayout(context) {
                     gravity = Gravity.CENTER
                 })
             })
-            
+
             // Click listener on the FrameLayout (outer container)
             isClickable = true
             isFocusable = true
@@ -210,7 +215,7 @@ class VoiceInputView(context: Context) : LinearLayout(context) {
                     onMicClicked?.invoke()
                 } else {
                     Log.w(TAG, "Permission NOT granted!")
-                    Toast.makeText(context, "Microphone permission required", Toast.LENGTH_SHORT).show()
+                    showError("Permission Required", "Microphone permission is required for voice typing.", null)
                 }
             }
         }
@@ -272,6 +277,9 @@ class VoiceInputView(context: Context) : LinearLayout(context) {
         addView(resultCard)
     }
 
+    /**
+     * Update state from service
+     */
     fun updateState(state: VoiceUiState) {
         Log.d(TAG, "updateState: engine=${state.selectedEngine}, groqStatus=${state.groqApiKeyStatus}")
         currentState = state
@@ -321,18 +329,47 @@ class VoiceInputView(context: Context) : LinearLayout(context) {
 
         // Update status text
         statusText.text = state.statusMessage
-        statusText.setTextColor(
-            if (state.errorMessage != null) Color.parseColor("#FF5252")
-            else ContextCompat.getColor(context, R.color.text_secondary)
-        )
+
+        // Handle error display
+        if (state.errorMessage != null || state.errorType != null) {
+            showError(
+                title = state.errorTitle ?: "Error",
+                message = state.errorMessage ?: "Unknown error",
+                details = state.errorDetails
+            )
+        } else {
+            hideError()
+        }
 
         // Update result card
         if (state.showResult && state.resultText != null) {
             resultTextView.text = state.resultText
             resultCard.visibility = View.VISIBLE
+            hideError()
         } else {
             resultCard.visibility = View.GONE
         }
+    }
+
+    /**
+     * Show error in the error display
+     */
+    fun showError(title: String, message: String, details: String?) {
+        errorDisplay.showError(title, message, details)
+    }
+
+    /**
+     * Show API error with type
+     */
+    fun showApiError(engine: String, errorType: String, message: String, fullError: String?) {
+        errorDisplay.showApiError(engine, errorType, message, fullError)
+    }
+
+    /**
+     * Hide error display
+     */
+    fun hideError() {
+        errorDisplay.hideError()
     }
 
     private fun createRoundedBackground(color: Int, cornerRadiusDp: Float = 8f): GradientDrawable {

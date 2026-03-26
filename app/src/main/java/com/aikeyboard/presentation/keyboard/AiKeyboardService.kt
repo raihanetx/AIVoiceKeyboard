@@ -20,10 +20,9 @@ import com.aikeyboard.core.util.AudioRecorder
 import com.aikeyboard.data.local.PreferencesManager
 import com.aikeyboard.data.remote.api.GeminiLiveApi
 import com.aikeyboard.data.remote.api.GroqWhisperApi
+import com.aikeyboard.data.remote.api.TranscriptionResult
 import com.aikeyboard.data.remote.api.ZAiApi
 import com.aikeyboard.domain.model.Language
-import com.aikeyboard.domain.model.TranscriptionResult
-import com.aikeyboard.domain.model.TranslationResult
 import com.aikeyboard.presentation.keyboard.view.EmojiView
 import com.aikeyboard.presentation.keyboard.view.KeyboardView
 import com.aikeyboard.presentation.keyboard.view.TranslateView
@@ -238,9 +237,8 @@ class AiKeyboardService : InputMethodService() {
                     // Show API key input
                     Log.d(TAG, "Groq needs API key, showing input")
                     voiceState = voiceState.copy(
-                        showApiKeyInputFor = "groq",
-                        errorMessage = null
-                    )
+                        showApiKeyInputFor = "groq"
+                    ).clearError()
                     voiceInputView?.updateState(voiceState)
                 }
             }
@@ -253,9 +251,8 @@ class AiKeyboardService : InputMethodService() {
                     // Show API key input
                     Log.d(TAG, "Gemini needs API key, showing input")
                     voiceState = voiceState.copy(
-                        showApiKeyInputFor = "gemini",
-                        errorMessage = null
-                    )
+                        showApiKeyInputFor = "gemini"
+                    ).clearError()
                     voiceInputView?.updateState(voiceState)
                 }
             }
@@ -270,7 +267,11 @@ class AiKeyboardService : InputMethodService() {
 
         if (apiKey.isBlank()) {
             Log.e(TAG, "API key is blank!")
-            voiceState = voiceState.copy(errorMessage = "API Key cannot be empty")
+            voiceState = voiceState.withError(
+                title = "Invalid Input",
+                message = "API Key cannot be empty",
+                type = ErrorType.INVALID_KEY
+            )
             voiceInputView?.updateState(voiceState)
             return
         }
@@ -292,7 +293,11 @@ class AiKeyboardService : InputMethodService() {
 
         if (!saved) {
             Log.e(TAG, "Failed to save API key!")
-            voiceState = voiceState.copy(errorMessage = "Failed to save API key")
+            voiceState = voiceState.withError(
+                title = "Save Failed",
+                message = "Failed to save API key",
+                type = ErrorType.UNKNOWN
+            )
             voiceInputView?.updateState(voiceState)
             return
         }
@@ -312,9 +317,8 @@ class AiKeyboardService : InputMethodService() {
         voiceState = voiceState.copy(
             selectedEngine = engine,
             showApiKeyInputFor = null,
-            errorMessage = null,
             statusMessage = getReadyMessage(engine)
-        )
+        ).clearError()
         voiceInputView?.updateState(voiceState)
         Log.d(TAG, "Engine selected and saved: $engine")
     }
@@ -324,15 +328,14 @@ class AiKeyboardService : InputMethodService() {
      */
     private fun selectEngineWithStatus(engine: String) {
         preferencesManager.setSttEngine(engine)
-        
+
         voiceState = voiceState.copy(
             selectedEngine = engine,
             showApiKeyInputFor = null,
-            errorMessage = null,
             groqApiKeyStatus = if (engine == "groq" || preferencesManager.hasGroqApiKey()) ApiKeyStatus.SAVED else voiceState.groqApiKeyStatus,
             geminiApiKeyStatus = if (engine == "gemini" || preferencesManager.hasGeminiApiKey()) ApiKeyStatus.SAVED else voiceState.geminiApiKeyStatus,
             statusMessage = getReadyMessage(engine)
-        )
+        ).clearError()
         voiceInputView?.updateState(voiceState)
         Log.d(TAG, "Engine selected with status: $engine, groqStatus=${voiceState.groqApiKeyStatus}, geminiStatus=${voiceState.geminiApiKeyStatus}")
     }
@@ -387,8 +390,11 @@ class AiKeyboardService : InputMethodService() {
                 if (!preferencesManager.hasGroqApiKey()) {
                     Log.e(TAG, "Groq API key NOT found!")
                     voiceState = voiceState.copy(
-                        errorMessage = "Please enter Groq API Key first",
                         showApiKeyInputFor = "groq"
+                    ).withError(
+                        title = "API Key Required",
+                        message = "Please enter your Groq API key first",
+                        type = ErrorType.AUTH
                     )
                     voiceInputView?.updateState(voiceState)
                     return
@@ -399,8 +405,11 @@ class AiKeyboardService : InputMethodService() {
                 if (!preferencesManager.hasGeminiApiKey()) {
                     Log.e(TAG, "Gemini API key NOT found!")
                     voiceState = voiceState.copy(
-                        errorMessage = "Please enter Gemini API Key first",
                         showApiKeyInputFor = "gemini"
+                    ).withError(
+                        title = "API Key Required",
+                        message = "Please enter your Gemini API key first",
+                        type = ErrorType.AUTH
                     )
                     voiceInputView?.updateState(voiceState)
                     return
@@ -414,7 +423,12 @@ class AiKeyboardService : InputMethodService() {
             != PackageManager.PERMISSION_GRANTED
         ) {
             Log.e(TAG, "RECORD_AUDIO permission NOT granted!")
-            voiceState = voiceState.copy(errorMessage = "Microphone permission required")
+            voiceState = voiceState.withError(
+                title = "Permission Required",
+                message = "Microphone permission is required for voice typing",
+                type = ErrorType.PERMISSION,
+                details = "Please grant microphone permission in Settings > Apps > AI Voice Keyboard > Permissions"
+            )
             voiceInputView?.updateState(voiceState)
             return
         }
@@ -423,9 +437,8 @@ class AiKeyboardService : InputMethodService() {
         isRecording = true
         voiceState = voiceState.copy(
             isRecording = true,
-            errorMessage = null,
             statusMessage = "🔴 Recording with ${voiceState.getEngineDisplayName()}..."
-        )
+        ).clearError()
         voiceInputView?.updateState(voiceState)
 
         when (engine) {
@@ -440,7 +453,11 @@ class AiKeyboardService : InputMethodService() {
      */
     private fun startAndroidSpeechRecognizer() {
         if (!SpeechRecognizer.isRecognitionAvailable(this)) {
-            stopRecordingWithError("Speech recognition not available")
+            stopRecordingWithError(
+                title = "Not Available",
+                message = "Speech recognition is not available on this device",
+                type = ErrorType.UNKNOWN
+            )
             return
         }
 
@@ -461,7 +478,13 @@ class AiKeyboardService : InputMethodService() {
                 }
 
                 override fun onError(error: Int) {
-                    stopRecordingWithError(getSpeechErrorText(error))
+                    val (errorType, errorMessage, errorDetails) = getSpeechErrorInfo(error)
+                    stopRecordingWithError(
+                        title = "Speech Error",
+                        message = errorMessage,
+                        type = errorType,
+                        details = errorDetails
+                    )
                 }
 
                 override fun onResults(results: Bundle?) {
@@ -469,7 +492,11 @@ class AiKeyboardService : InputMethodService() {
                     if (!matches.isNullOrEmpty()) {
                         showResult(matches[0])
                     } else {
-                        stopRecordingWithError("No speech detected")
+                        stopRecordingWithError(
+                            title = "No Speech",
+                            message = "No speech was detected",
+                            type = ErrorType.EMPTY_RESULT
+                        )
                     }
                 }
 
@@ -497,7 +524,12 @@ class AiKeyboardService : InputMethodService() {
     private fun startGroqRecording() {
         val audioFile = audioRecorder?.startRecording()
         if (audioFile == null) {
-            stopRecordingWithError("Failed to start recording")
+            stopRecordingWithError(
+                title = "Recording Failed",
+                message = "Could not start audio recording",
+                type = ErrorType.NO_AUDIO,
+                details = "The audio recorder failed to initialize. Please check microphone permissions."
+            )
             return
         }
         voiceState = voiceState.copy(statusMessage = "🔵 Recording... Tap mic to stop")
@@ -507,7 +539,12 @@ class AiKeyboardService : InputMethodService() {
     private fun startGeminiRecording() {
         val audioFile = audioRecorder?.startRecording()
         if (audioFile == null) {
-            stopRecordingWithError("Failed to start recording")
+            stopRecordingWithError(
+                title = "Recording Failed",
+                message = "Could not start audio recording",
+                type = ErrorType.NO_AUDIO,
+                details = "The audio recorder failed to initialize. Please check microphone permissions."
+            )
             return
         }
         voiceState = voiceState.copy(statusMessage = "🟣 Recording... Tap mic to stop")
@@ -524,11 +561,19 @@ class AiKeyboardService : InputMethodService() {
             speechRecognizer?.stopListening()
             speechRecognizer?.destroy()
             speechRecognizer = null
+            voiceState = voiceState.copy(
+                isRecording = false,
+                statusMessage = getReadyMessage(voiceState.selectedEngine)
+            )
+            voiceInputView?.updateState(voiceState)
         } else {
             val audioFile = audioRecorder?.stopRecording()
 
             if (audioFile != null && audioFile.exists() && audioFile.length() > 0) {
-                voiceState = voiceState.copy(statusMessage = "Transcribing...")
+                voiceState = voiceState.copy(
+                    statusMessage = "Transcribing...",
+                    isRecording = false
+                )
                 voiceInputView?.updateState(voiceState)
 
                 CoroutineScope(Dispatchers.IO).launch {
@@ -539,29 +584,54 @@ class AiKeyboardService : InputMethodService() {
                     }
 
                     withContext(Dispatchers.Main) {
-                        result.fold(
-                            onSuccess = { text -> showResult(text) },
-                            onFailure = { error -> stopRecordingWithError(error.message ?: "Transcription failed") }
-                        )
+                        handleTranscriptionResult(result)
                     }
                     audioFile.delete()
                 }
             } else {
-                stopRecordingWithError("No audio recorded")
+                stopRecordingWithError(
+                    title = "No Audio",
+                    message = "No audio was recorded",
+                    type = ErrorType.NO_AUDIO,
+                    details = "The recording file is empty or missing. Please try again."
+                )
             }
         }
-
-        voiceState = voiceState.copy(isRecording = false)
-        voiceInputView?.updateState(voiceState)
     }
 
-    private fun stopRecordingWithError(message: String) {
+    /**
+     * Handle transcription result with detailed error handling
+     */
+    private fun handleTranscriptionResult(result: TranscriptionResult) {
+        if (result.isSuccess && result.text != null) {
+            showResult(result.text)
+        } else {
+            // Show detailed error
+            val engineName = voiceState.getEngineDisplayName()
+            stopRecordingWithError(
+                title = "$engineName Error",
+                message = result.errorMessage ?: "Transcription failed",
+                type = result.errorType ?: ErrorType.UNKNOWN,
+                details = result.errorDetails
+            )
+        }
+    }
+
+    private fun stopRecordingWithError(
+        title: String,
+        message: String,
+        type: String = ErrorType.UNKNOWN,
+        details: String? = null
+    ) {
         isRecording = false
         speechRecognizer?.destroy()
         speechRecognizer = null
-        voiceState = voiceState.copy(
-            isRecording = false,
-            errorMessage = message,
+        voiceState = voiceState.withError(
+            title = title,
+            message = message,
+            type = type,
+            details = details
+        ).copy(
             statusMessage = getStatusMessage(voiceState.selectedEngine)
         )
         voiceInputView?.updateState(voiceState)
@@ -574,19 +644,65 @@ class AiKeyboardService : InputMethodService() {
             showResult = true,
             resultText = text,
             statusMessage = "✓ Transcription complete"
-        )
+        ).clearError()
         voiceInputView?.updateState(voiceState)
     }
 
-    private fun getSpeechErrorText(error: Int): String {
+    /**
+     * Get speech error info: Triple(errorType, message, details)
+     */
+    private fun getSpeechErrorInfo(error: Int): Triple<String, String, String?> {
         return when (error) {
-            SpeechRecognizer.ERROR_AUDIO -> "Audio error"
-            SpeechRecognizer.ERROR_CLIENT -> "Client error"
-            SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "Permission denied"
-            SpeechRecognizer.ERROR_NETWORK -> "Network error"
-            SpeechRecognizer.ERROR_NO_MATCH -> "No speech detected"
-            SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "No speech detected"
-            else -> "Error: $error"
+            SpeechRecognizer.ERROR_AUDIO -> Triple(
+                ErrorType.NO_AUDIO,
+                "Audio recording error",
+                "Error code: ERROR_AUDIO ($error)\nThe microphone may be in use by another app."
+            )
+            SpeechRecognizer.ERROR_CLIENT -> Triple(
+                ErrorType.UNKNOWN,
+                "Client error",
+                "Error code: ERROR_CLIENT ($error)\nA client-side error occurred."
+            )
+            SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> Triple(
+                ErrorType.PERMISSION,
+                "Permission denied",
+                "Error code: ERROR_INSUFFICIENT_PERMISSIONS ($error)\nPlease grant microphone permission."
+            )
+            SpeechRecognizer.ERROR_NETWORK -> Triple(
+                ErrorType.NETWORK,
+                "Network error",
+                "Error code: ERROR_NETWORK ($error)\nPlease check your internet connection."
+            )
+            SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> Triple(
+                ErrorType.TIMEOUT,
+                "Network timeout",
+                "Error code: ERROR_NETWORK_TIMEOUT ($error)\nThe network request timed out."
+            )
+            SpeechRecognizer.ERROR_NO_MATCH -> Triple(
+                ErrorType.EMPTY_RESULT,
+                "No speech detected",
+                "Error code: ERROR_NO_MATCH ($error)\nPlease speak clearly and try again."
+            )
+            SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> Triple(
+                ErrorType.EMPTY_RESULT,
+                "No speech detected",
+                "Error code: ERROR_SPEECH_TIMEOUT ($error)\nNo speech was detected within the timeout period."
+            )
+            SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> Triple(
+                ErrorType.UNKNOWN,
+                "Recognizer busy",
+                "Error code: ERROR_RECOGNIZER_BUSY ($error)\nThe speech recognizer is busy. Please try again."
+            )
+            SpeechRecognizer.ERROR_SERVER -> Triple(
+                ErrorType.SERVER,
+                "Server error",
+                "Error code: ERROR_SERVER ($error)\nThe speech recognition server encountered an error."
+            )
+            else -> Triple(
+                ErrorType.UNKNOWN,
+                "Unknown error",
+                "Error code: $error"
+            )
         }
     }
 
