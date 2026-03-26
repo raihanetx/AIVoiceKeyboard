@@ -196,17 +196,23 @@ class VoiceInputView(context: Context) : LinearLayout(context) {
                     textSize = 32f
                     gravity = Gravity.CENTER
                 })
-
-                setOnClickListener {
-                    if (ActivityCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO)
-                        == PackageManager.PERMISSION_GRANTED
-                    ) {
-                        onMicClicked?.invoke()
-                    } else {
-                        Toast.makeText(context, "Microphone permission required", Toast.LENGTH_SHORT).show()
-                    }
-                }
             })
+            
+            // Click listener on the FrameLayout (outer container)
+            isClickable = true
+            isFocusable = true
+            setOnClickListener {
+                Log.d(TAG, "=== MIC BUTTON CLICKED ===")
+                if (ActivityCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO)
+                    == PackageManager.PERMISSION_GRANTED
+                ) {
+                    Log.d(TAG, "Permission granted, invoking onMicClicked")
+                    onMicClicked?.invoke()
+                } else {
+                    Log.w(TAG, "Permission NOT granted!")
+                    Toast.makeText(context, "Microphone permission required", Toast.LENGTH_SHORT).show()
+                }
+            }
         }
         addView(micButton)
 

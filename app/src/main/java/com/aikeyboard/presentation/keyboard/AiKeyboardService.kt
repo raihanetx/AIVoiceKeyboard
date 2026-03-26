@@ -98,7 +98,7 @@ class AiKeyboardService : InputMethodService() {
     }
 
     /**
-     * Get status message based on engine
+     * Get status message based on engine and API key status
      */
     private fun getStatusMessage(engine: String): String {
         return when (engine) {
@@ -222,7 +222,7 @@ class AiKeyboardService : InputMethodService() {
      * Handle engine selection
      */
     private fun handleEngineSelection(engine: String) {
-        Log.d(TAG, "Engine selected: $engine")
+        Log.d(TAG, "=== Engine selected: $engine ===")
 
         when (engine) {
             "android" -> {
@@ -231,19 +231,31 @@ class AiKeyboardService : InputMethodService() {
             }
             "groq" -> {
                 if (preferencesManager.hasGroqApiKey()) {
+                    Log.d(TAG, "Groq has API key, selecting")
+                    voiceState = voiceState.copy(groqApiKeyStatus = ApiKeyStatus.SAVED)
                     selectEngine(engine)
                 } else {
                     // Show API key input
-                    voiceState = voiceState.copy(showApiKeyInputFor = "groq")
+                    Log.d(TAG, "Groq needs API key, showing input")
+                    voiceState = voiceState.copy(
+                        showApiKeyInputFor = "groq",
+                        errorMessage = null
+                    )
                     voiceInputView?.updateState(voiceState)
                 }
             }
             "gemini" -> {
                 if (preferencesManager.hasGeminiApiKey()) {
+                    Log.d(TAG, "Gemini has API key, selecting")
+                    voiceState = voiceState.copy(geminiApiKeyStatus = ApiKeyStatus.SAVED)
                     selectEngine(engine)
                 } else {
                     // Show API key input
-                    voiceState = voiceState.copy(showApiKeyInputFor = "gemini")
+                    Log.d(TAG, "Gemini needs API key, showing input")
+                    voiceState = voiceState.copy(
+                        showApiKeyInputFor = "gemini",
+                        errorMessage = null
+                    )
                     voiceInputView?.updateState(voiceState)
                 }
             }
@@ -254,39 +266,46 @@ class AiKeyboardService : InputMethodService() {
      * Handle API key entered
      */
     private fun handleApiKeyEntered(engine: String, apiKey: String) {
-        Log.d(TAG, "API key entered for: $engine")
+        Log.d(TAG, "=== API key entered for: $engine ===")
 
         if (apiKey.isBlank()) {
+            Log.e(TAG, "API key is blank!")
             voiceState = voiceState.copy(errorMessage = "API Key cannot be empty")
             voiceInputView?.updateState(voiceState)
             return
         }
 
-        // Save the key
-        when (engine) {
-            "groq" -> preferencesManager.setGroqApiKey(apiKey)
-            "gemini" -> preferencesManager.setGeminiApiKey(apiKey)
+        // Save the key synchronously
+        val saved = when (engine) {
+            "groq" -> {
+                val success = preferencesManager.setGroqApiKey(apiKey)
+                Log.d(TAG, "Groq API key saved: $success, hasKey=${preferencesManager.hasGroqApiKey()}")
+                success
+            }
+            "gemini" -> {
+                val success = preferencesManager.setGeminiApiKey(apiKey)
+                Log.d(TAG, "Gemini API key saved: $success, hasKey=${preferencesManager.hasGeminiApiKey()}")
+                success
+            }
+            else -> false
         }
 
-        // Update state
-        voiceState = voiceState.copy(
-            showApiKeyInputFor = null,
-            errorMessage = null
-        )
-        if (engine == "groq") {
-            voiceState = voiceState.copy(groqApiKeyStatus = ApiKeyStatus.SAVED)
-        } else if (engine == "gemini") {
-            voiceState = voiceState.copy(geminiApiKeyStatus = ApiKeyStatus.SAVED)
+        if (!saved) {
+            Log.e(TAG, "Failed to save API key!")
+            voiceState = voiceState.copy(errorMessage = "Failed to save API key")
+            voiceInputView?.updateState(voiceState)
+            return
         }
 
-        // Select the engine
-        selectEngine(engine)
+        // Select the engine with proper status
+        selectEngineWithStatus(engine)
 
         Toast.makeText(this, "$engine API Key saved!", Toast.LENGTH_SHORT).show()
+        Log.d(TAG, "=== API key flow complete for: $engine ===")
     }
 
     /**
-     * Select an engine
+     * Select an engine (simple version - just saves and updates state)
      */
     private fun selectEngine(engine: String) {
         preferencesManager.setSttEngine(engine)
@@ -294,19 +313,52 @@ class AiKeyboardService : InputMethodService() {
             selectedEngine = engine,
             showApiKeyInputFor = null,
             errorMessage = null,
-            statusMessage = getStatusMessage(engine)
+            statusMessage = getReadyMessage(engine)
         )
         voiceInputView?.updateState(voiceState)
         Log.d(TAG, "Engine selected and saved: $engine")
     }
 
     /**
+     * Select engine after API key is saved (updates API key status too)
+     */
+    private fun selectEngineWithStatus(engine: String) {
+        preferencesManager.setSttEngine(engine)
+        
+        voiceState = voiceState.copy(
+            selectedEngine = engine,
+            showApiKeyInputFor = null,
+            errorMessage = null,
+            groqApiKeyStatus = if (engine == "groq" || preferencesManager.hasGroqApiKey()) ApiKeyStatus.SAVED else voiceState.groqApiKeyStatus,
+            geminiApiKeyStatus = if (engine == "gemini" || preferencesManager.hasGeminiApiKey()) ApiKeyStatus.SAVED else voiceState.geminiApiKeyStatus,
+            statusMessage = getReadyMessage(engine)
+        )
+        voiceInputView?.updateState(voiceState)
+        Log.d(TAG, "Engine selected with status: $engine, groqStatus=${voiceState.groqApiKeyStatus}, geminiStatus=${voiceState.geminiApiKeyStatus}")
+    }
+
+    /**
+     * Get ready message for an engine (engine is ready to use)
+     */
+    private fun getReadyMessage(engine: String): String {
+        return when (engine) {
+            "android" -> "🟢 Android ready - Tap mic to speak"
+            "groq" -> "🔵 Groq ready - Tap mic to speak"
+            "gemini" -> "🟣 Gemini ready - Tap mic to speak"
+            else -> "Select an engine"
+        }
+    }
+
+    /**
      * Handle mic button click
      */
     private fun handleMicClick() {
+        Log.d(TAG, "=== handleMicClick called, isRecording=$isRecording ===")
         if (isRecording) {
+            Log.d(TAG, "Stopping recording...")
             stopRecording()
         } else {
+            Log.d(TAG, "Starting recording...")
             startRecording()
         }
     }
@@ -325,11 +377,15 @@ class AiKeyboardService : InputMethodService() {
      */
     private fun startRecording() {
         val engine = voiceState.selectedEngine
+        Log.d(TAG, "=== startRecording called, engine=$engine ===")
+        Log.d(TAG, "groqApiKeyStatus=${voiceState.groqApiKeyStatus}, geminiApiKeyStatus=${voiceState.geminiApiKeyStatus}")
+        Log.d(TAG, "hasGroqApiKey=${preferencesManager.hasGroqApiKey()}, hasGeminiApiKey=${preferencesManager.hasGeminiApiKey()}")
 
         // Validate API key for Groq/Gemini
         when (engine) {
             "groq" -> {
                 if (!preferencesManager.hasGroqApiKey()) {
+                    Log.e(TAG, "Groq API key NOT found!")
                     voiceState = voiceState.copy(
                         errorMessage = "Please enter Groq API Key first",
                         showApiKeyInputFor = "groq"
@@ -337,9 +393,11 @@ class AiKeyboardService : InputMethodService() {
                     voiceInputView?.updateState(voiceState)
                     return
                 }
+                Log.d(TAG, "Groq API key found, proceeding")
             }
             "gemini" -> {
                 if (!preferencesManager.hasGeminiApiKey()) {
+                    Log.e(TAG, "Gemini API key NOT found!")
                     voiceState = voiceState.copy(
                         errorMessage = "Please enter Gemini API Key first",
                         showApiKeyInputFor = "gemini"
@@ -347,6 +405,7 @@ class AiKeyboardService : InputMethodService() {
                     voiceInputView?.updateState(voiceState)
                     return
                 }
+                Log.d(TAG, "Gemini API key found, proceeding")
             }
         }
 
@@ -354,11 +413,13 @@ class AiKeyboardService : InputMethodService() {
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)
             != PackageManager.PERMISSION_GRANTED
         ) {
+            Log.e(TAG, "RECORD_AUDIO permission NOT granted!")
             voiceState = voiceState.copy(errorMessage = "Microphone permission required")
             voiceInputView?.updateState(voiceState)
             return
         }
 
+        Log.d(TAG, "All checks passed, starting recording for $engine")
         isRecording = true
         voiceState = voiceState.copy(
             isRecording = true,

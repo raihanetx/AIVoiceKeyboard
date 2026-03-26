@@ -30,16 +30,18 @@ class PreferencesManager(context: Context) {
 
     /**
      * Set the STT engine
+     * Uses commit() for synchronous saving to ensure immediate availability
      */
-    fun setSttEngine(engine: String) {
+    fun setSttEngine(engine: String): Boolean {
         val validEngine = when (engine) {
             AppConstants.STT_ENGINE_ANDROID, AppConstants.STT_ENGINE_GROQ, AppConstants.STT_ENGINE_GEMINI -> engine
             else -> AppConstants.STT_ENGINE_ANDROID
         }
-        sharedPreferences.edit()
+        val success = sharedPreferences.edit()
             .putString(AppConstants.PREF_STT_ENGINE, validEngine)
-            .apply()
-        Log.d(TAG, "STT engine set to: $validEngine")
+            .commit()  // Synchronous save!
+        Log.d(TAG, "STT engine set to: $validEngine, success=$success")
+        return success
     }
 
     // ==================== Language Preferences ====================
@@ -93,12 +95,15 @@ class PreferencesManager(context: Context) {
 
     /**
      * Set Groq API key
+     * Uses commit() for synchronous saving to ensure immediate availability
      */
-    fun setGroqApiKey(key: String) {
-        sharedPreferences.edit()
-            .putString(AppConstants.PREF_GROQ_API_KEY, key.trim())
-            .apply()
-        Log.d(TAG, "Groq API key saved: ${if (key.isNotBlank()) "***saved***" else "empty"}")
+    fun setGroqApiKey(key: String): Boolean {
+        val trimmedKey = key.trim()
+        val success = sharedPreferences.edit()
+            .putString(AppConstants.PREF_GROQ_API_KEY, trimmedKey)
+            .commit()  // Synchronous save!
+        Log.d(TAG, "Groq API key saved: ${if (trimmedKey.isNotBlank()) "***saved***" else "empty"}, success=$success")
+        return success
     }
 
     /**
@@ -125,12 +130,15 @@ class PreferencesManager(context: Context) {
 
     /**
      * Set Gemini API key
+     * Uses commit() for synchronous saving to ensure immediate availability
      */
-    fun setGeminiApiKey(key: String) {
-        sharedPreferences.edit()
-            .putString(AppConstants.PREF_GEMINI_API_KEY, key.trim())
-            .apply()
-        Log.d(TAG, "Gemini API key saved: ${if (key.isNotBlank()) "***saved***" else "empty"}")
+    fun setGeminiApiKey(key: String): Boolean {
+        val trimmedKey = key.trim()
+        val success = sharedPreferences.edit()
+            .putString(AppConstants.PREF_GEMINI_API_KEY, trimmedKey)
+            .commit()  // Synchronous save!
+        Log.d(TAG, "Gemini API key saved: ${if (trimmedKey.isNotBlank()) "***saved***" else "empty"}, success=$success")
+        return success
     }
 
     /**
