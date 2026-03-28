@@ -1,13 +1,16 @@
+import java.util.Properties
+import java.io.FileInputStream
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
 }
 
 // Read local.properties for API key
-val localProperties = java.util.Properties()
+val localProperties = Properties()
 val localPropertiesFile = rootProject.file("local.properties")
 if (localPropertiesFile.exists()) {
-    localProperties.load(localPropertiesFile.inputStream())
+    localProperties.load(FileInputStream(localPropertiesFile))
 }
 val groqApiKey: String = localProperties.getProperty("GROQ_API_KEY") ?: "YOUR_GROQ_API_KEY_HERE"
 
