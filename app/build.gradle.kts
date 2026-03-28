@@ -22,8 +22,8 @@ android {
         applicationId = "com.aikeyboard"
         minSdk = 26
         targetSdk = 34
-        versionCode = 8
-        versionName = "1.0.8"
+        versionCode = 9
+        versionName = "1.0.9"
         
         buildConfigField("String", "GROQ_API_KEY", "\"$groqApiKey\"")
     }

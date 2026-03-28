@@ -24,19 +24,18 @@ jobs:
     - name: Grant execute permission for gradlew
       run: chmod +x gradlew
 
-    - name: Build Release APK
-      run: ./gradlew assembleRelease --no-daemon
+    - name: Build Debug APK (Signed with debug key)
+      run: ./gradlew assembleDebug --no-daemon
 
-    - name: Get version name
-      id: version
+    - name: Rename APK
       run: |
         VERSION=$(grep "versionName" app/build.gradle.kts | sed 's/.*versionName = "\([^"]*\)".*/\1/')
-        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        mv app/build/outputs/apk/debug/*.apk app/build/outputs/apk/debug/PixelProKeyboard-v${VERSION}.apk
 
     - uses: actions/upload-artifact@v4
       with:
-        name: app-release
-        path: app/build/outputs/apk/release/*.apk
+        name: app-debug
+        path: app/build/outputs/apk/debug/*.apk
 
   release:
     needs: build
@@ -45,7 +44,7 @@ jobs:
     steps:
     - uses: actions/download-artifact@v4
       with:
-        name: app-release
+        name: app-debug
         path: ./apk
 
     - name: Get version from tag
@@ -54,7 +53,7 @@ jobs:
         if [[ $GITHUB_REF == refs/tags/* ]]; then
           VERSION=${GITHUB_REF#refs/tags/}
         else
-          VERSION="v1.0.7"
+          VERSION="v1.0.9"
         fi
         echo "version=$VERSION" >> $GITHUB_OUTPUT
 
@@ -62,51 +61,47 @@ jobs:
       uses: softprops/action-gh-release@v1
       with:
         tag_name: ${{ steps.get_version.outputs.version }}
-        name: PixelPro Keyboard ${{ steps.get_version.outputs.version }} - Production Ready
+        name: PixelPro Keyboard ${{ steps.get_version.outputs.version }}
         body: |
-          ## 🚀 PixelPro Keyboard ${{ steps.get_version.outputs.version }} - Production Ready
+          ## 🚀 PixelPro Keyboard ${{ steps.get_version.outputs.version }}
 
-          ### ✅ Comprehensive Bug Fixes
-          - **Thread Safety**: AtomicBoolean for voice state management
-          - **SpeechRecognizer**: Added availability check before use
-          - **Network Check**: Validates internet for Groq API
-          - **Memory Management**: Proper cleanup of resources
-          - **Null Safety**: Comprehensive null checks throughout
+          ### 🆕 NEW FEATURES - ALL WORKING!
 
-          ### 🎯 Voice Recognition Improvements
-          - Minimum recording duration check (500ms)
-          - Better error messages and user feedback
-          - Automatic recovery from transient errors
-          - Visualizer animation improvements
+          #### 😊 Emoji Keyboard
+          - 10 categories with 200+ emojis
+          - Tap any emoji to insert
+          - Easy category switching
 
-          ### 🎤 Fully Functional Features
-          - **All keyboard keys work** - Letters, numbers, symbols, enter, delete, space
-          - **Caps lock** - Toggle uppercase with ⇧ key
-          - **Language swap** - English ↔ বাংলা (Bangla)
-          - **Word suggestions** - Shows predictions while typing
-          - **Haptic feedback** - Vibration on every key press
+          #### 📋 Clipboard Manager
+          - View clipboard history
+          - Tap to paste any item
+          - Long-press to delete
+          - Auto-saves copied text
 
-          ### Voice Typing (Both Engines Working!)
-          - **Android SpeechRecognizer** - Offline/Online, works without internet if language pack installed
-          - **Groq Whisper API** - Online, high accuracy transcription
-          - **Animated visualizer** - Real-time audio feedback
-          - **Easy engine switching** - Tap language chip to swap engines
+          #### 🔐 Credential Safe
+          - Save passwords/credentials securely
+          - Tap to insert credentials
+          - Long-press to delete
+          - Add new credentials easily
 
-          ### 🎨 Material Design UI
-          - Light theme with Google Keyboard colors
-          - Toolbar with 6 action buttons
-          - Rounded key design
-          - Smooth animations
+          ### ✅ All Toolbar Buttons Now Work!
+          - **Emoji** → Opens emoji keyboard
+          - **Clipboard** → Opens clipboard manager
+          - **Credentials** → Opens credential safe
+          - **Language** → Swap EN ↔ বাংলা
+          - **Mic** → Voice typing
+
+          ### 🎤 Voice Recognition
+          - Android SpeechRecognizer (Offline/Online)
+          - Groq Whisper API (Online)
 
           ### 📲 Installation
-          1. Download the APK
+          1. Download APK
           2. Enable "Install from unknown sources"
-          3. Install the APK
+          3. Install APK
           4. Go to Settings > System > Languages & input > On-screen keyboard
           5. Enable "AI Voice Keyboard"
           6. Set as default keyboard
-
-          **Full Changelog**: https://github.com/raihanetx/AIVoiceKeyboard/commits/main
         files: ./apk/*.apk
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
