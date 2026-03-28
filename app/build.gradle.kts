@@ -3,6 +3,14 @@ plugins {
     id("org.jetbrains.kotlin.android")
 }
 
+// Read local.properties for API key
+val localProperties = java.util.Properties()
+val localPropertiesFile = rootProject.file("local.properties")
+if (localPropertiesFile.exists()) {
+    localProperties.load(localPropertiesFile.inputStream())
+}
+val groqApiKey: String = localProperties.getProperty("GROQ_API_KEY") ?: "YOUR_GROQ_API_KEY_HERE"
+
 android {
     namespace = "com.aikeyboard"
     compileSdk = 34
@@ -13,6 +21,8 @@ android {
         targetSdk = 34
         versionCode = 1
         versionName = "1.0.0"
+        
+        buildConfigField("String", "GROQ_API_KEY", "\"$groqApiKey\"")
     }
 
     buildTypes {
@@ -40,6 +50,7 @@ android {
     
     buildFeatures {
         viewBinding = true
+        buildConfig = true
     }
 }
 
