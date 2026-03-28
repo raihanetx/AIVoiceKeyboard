@@ -6,7 +6,6 @@ import android.provider.Settings
 import android.view.inputmethod.InputMethodManager
 import android.widget.Button
 import android.widget.TextView
-import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 
 class MainActivity : AppCompatActivity() {
@@ -16,8 +15,7 @@ class MainActivity : AppCompatActivity() {
         setContentView(R.layout.activity_main)
         
         findViewById<Button>(R.id.btnEnableKeyboard).setOnClickListener {
-            val intent = Intent(Settings.ACTION_INPUT_METHOD_SETTINGS)
-            startActivity(intent)
+            startActivity(Intent(Settings.ACTION_INPUT_METHOD_SETTINGS))
         }
         
         findViewById<Button>(R.id.btnSelectKeyboard).setOnClickListener {
@@ -32,9 +30,9 @@ class MainActivity : AppCompatActivity() {
         val enabled = imm.enabledInputMethodList.any { it.packageName == packageName }
         
         findViewById<TextView>(R.id.tvStatus).text = if (enabled) {
-            "✓ Keyboard enabled! Open any app with text input to use it."
+            "✅ Keyboard enabled!\n\nOpen any app with text input (Messages, WhatsApp, etc.)\nand tap on a text field to use the keyboard."
         } else {
-            "Step 1: Tap 'Enable Keyboard'\nStep 2: Enable 'AI Voice Keyboard'\nStep 3: Come back and tap 'Select Keyboard'"
+            "1. Tap 'Enable Keyboard' below\n2. Enable 'AI Voice Keyboard'\n3. Come back and tap 'Select Keyboard'"
         }
     }
 }
