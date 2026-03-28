@@ -3,6 +3,8 @@ name: Build and Release APK
 on:
   push:
     branches: [ main ]
+    tags:
+      - 'v*'
   workflow_dispatch:
 
 jobs:
@@ -22,40 +24,69 @@ jobs:
     - name: Grant execute permission for gradlew
       run: chmod +x gradlew
 
-    - name: Build Debug APK
-      run: ./gradlew assembleDebug --no-daemon
+    - name: Build Release APK
+      run: ./gradlew assembleRelease --no-daemon
+
+    - name: Get version name
+      id: version
+      run: |
+        VERSION=$(grep "versionName" app/build.gradle.kts | sed 's/.*versionName = "\([^"]*\)".*/\1/')
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
 
     - uses: actions/upload-artifact@v4
       with:
-        name: app-debug
-        path: app/build/outputs/apk/debug/*.apk
+        name: app-release
+        path: app/build/outputs/apk/release/*.apk
 
   release:
     needs: build
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
     steps:
     - uses: actions/download-artifact@v4
       with:
-        name: app-debug
+        name: app-release
         path: ./apk
+
+    - name: Get version from tag
+      id: get_version
+      run: |
+        if [[ $GITHUB_REF == refs/tags/* ]]; then
+          VERSION=${GITHUB_REF#refs/tags/}
+        else
+          VERSION="v1.0.7"
+        fi
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
 
     - name: Create Release
       uses: softprops/action-gh-release@v1
       with:
-        tag_name: v1.0.7
-        name: PixelPro Keyboard v1.0.7
+        tag_name: ${{ steps.get_version.outputs.version }}
+        name: PixelPro Keyboard ${{ steps.get_version.outputs.version }} - Production Ready
         body: |
-          ## PixelPro Keyboard v1.0.7 - Production Ready
+          ## 🚀 PixelPro Keyboard ${{ steps.get_version.outputs.version }} - Production Ready
 
-          ### 🎯 Fully Functional
+          ### ✅ Comprehensive Bug Fixes
+          - **Thread Safety**: AtomicBoolean for voice state management
+          - **SpeechRecognizer**: Added availability check before use
+          - **Network Check**: Validates internet for Groq API
+          - **Memory Management**: Proper cleanup of resources
+          - **Null Safety**: Comprehensive null checks throughout
+
+          ### 🎯 Voice Recognition Improvements
+          - Minimum recording duration check (500ms)
+          - Better error messages and user feedback
+          - Automatic recovery from transient errors
+          - Visualizer animation improvements
+
+          ### 🎤 Fully Functional Features
           - **All keyboard keys work** - Letters, numbers, symbols, enter, delete, space
           - **Caps lock** - Toggle uppercase with ⇧ key
           - **Language swap** - English ↔ বাংলা (Bangla)
           - **Word suggestions** - Shows predictions while typing
           - **Haptic feedback** - Vibration on every key press
 
-          ### 🎤 Voice Typing (Both Engines Working!)
+          ### Voice Typing (Both Engines Working!)
           - **Android SpeechRecognizer** - Offline/Online, works without internet if language pack installed
           - **Groq Whisper API** - Online, high accuracy transcription
           - **Animated visualizer** - Real-time audio feedback
@@ -67,13 +98,15 @@ jobs:
           - Rounded key design
           - Smooth animations
 
-          ### Installation
+          ### 📲 Installation
           1. Download the APK
           2. Enable "Install from unknown sources"
           3. Install the APK
           4. Go to Settings > System > Languages & input > On-screen keyboard
           5. Enable "AI Voice Keyboard"
           6. Set as default keyboard
+
+          **Full Changelog**: https://github.com/raihanetx/AIVoiceKeyboard/commits/main
         files: ./apk/*.apk
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
