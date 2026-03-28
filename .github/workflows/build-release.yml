@@ -43,13 +43,13 @@ jobs:
     - name: Create Release
       uses: softprops/action-gh-release@v1
       with:
-        tag_name: v1.0.5
-        name: PixelPro Keyboard v1.0.5
+        tag_name: v1.0.6
+        name: PixelPro Keyboard v1.0.6
         body: |
-          ## PixelPro Keyboard v1.0.5
+          ## PixelPro Keyboard v1.0.6
 
           ### What's New
-          - Fixed keyboard not opening issue
+          - **Fixed all keyboard functionality** - All keys now work properly
           - Toolbar with 6 buttons (emoji, clipboard, credentials, language, settings, voice)
           - Suggestion bar with 3 word predictions
           - Voice bar with language chip and visualizer

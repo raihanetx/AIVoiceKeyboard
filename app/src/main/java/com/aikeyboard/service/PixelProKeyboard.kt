@@ -15,6 +15,7 @@ import android.os.Vibrator
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
+import android.util.DisplayMetrics
 import android.view.Gravity
 import android.view.View
 import android.view.inputmethod.EditorInfo
@@ -63,6 +64,9 @@ class PixelProKeyboard : android.inputmethodservice.InputMethodService() {
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private val client = OkHttpClient()
 
+    // Display metrics for dp conversion
+    private lateinit var displayMetrics: DisplayMetrics
+
     // Bangla layout
     private val banglaRows = listOf(
         listOf("ঔ","ঐ","আ","ঈ","ঊ","ঋ","এ","অ","ই","উ"),
@@ -75,6 +79,7 @@ class PixelProKeyboard : android.inputmethodservice.InputMethodService() {
 
     override fun onCreate() {
         super.onCreate()
+        displayMetrics = resources.displayMetrics
         speechRecognizer = SpeechRecognizer.createSpeechRecognizer(this)
     }
 
@@ -97,7 +102,7 @@ class PixelProKeyboard : android.inputmethodservice.InputMethodService() {
         // 1. TOOLBAR
         toolbar = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
-            layoutParams = LinearLayout.LayoutParams(-1, dp(44))
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(44))
             setPadding(dp(4), 0, dp(4), 0)
             gravity = Gravity.CENTER_VERTICAL
         }
@@ -108,7 +113,9 @@ class PixelProKeyboard : android.inputmethodservice.InputMethodService() {
         toolbar.addView(makeToolbarBtn(R.drawable.ic_key) { show("Credentials coming soon") })
 
         // Spacer
-        toolbar.addView(View(this).apply { layoutParams = LinearLayout.LayoutParams(0, 1, 1f) })
+        toolbar.addView(View(this).apply { 
+            layoutParams = LinearLayout.LayoutParams(0, 1, 1f) 
+        })
 
         // Right icons: Language, Settings, Mic
         toolbar.addView(makeToolbarBtn(R.drawable.ic_globe) { swapLanguage() })
@@ -120,7 +127,7 @@ class PixelProKeyboard : android.inputmethodservice.InputMethodService() {
         // 2. SUGGESTION BAR
         suggestionBar = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
-            layoutParams = LinearLayout.LayoutParams(-1, dp(48))
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(48))
             weightSum = 3f
             setBackgroundColor(Color.WHITE)
             visibility = View.GONE
@@ -141,7 +148,7 @@ class PixelProKeyboard : android.inputmethodservice.InputMethodService() {
         // 3. VOICE BAR
         voiceBar = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
-            layoutParams = LinearLayout.LayoutParams(-1, dp(48))
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(48))
             gravity = Gravity.CENTER_VERTICAL
             setPadding(dp(16), dp(4), dp(16), dp(4))
             setBackgroundColor(Color.WHITE)
@@ -163,7 +170,7 @@ class PixelProKeyboard : android.inputmethodservice.InputMethodService() {
         // Visualizer
         val visualizer = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
-            layoutParams = LinearLayout.LayoutParams(0, -1, 1f)
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f)
             gravity = Gravity.CENTER
         }
         repeat(4) {
@@ -209,66 +216,84 @@ class PixelProKeyboard : android.inputmethodservice.InputMethodService() {
     private fun addKeyRow(keys: List<String>, hasSpecial: Boolean = false, isBottom: Boolean = false) {
         val row = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
-            layoutParams = LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(3) }
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, 
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { topMargin = dp(3) }
             gravity = Gravity.CENTER
         }
 
         keys.forEach { key ->
             val btn = Button(this)
             btn.isAllCaps = false
+            btn.setAllCaps(false)
+
+            // Set text color first
+            btn.setTextColor(if (key == "↵") Color.WHITE else colorKeyText)
 
             when (key) {
                 "⇧" -> {
                     btn.text = if (isCaps) "⇪" else "⇧"
-                    btn.setOnClickListener { toggleCaps() }
                     btn.background = keyBg(colorSpecialBg)
                     btn.textSize = 15f
                     btn.setTypeface(null, Typeface.BOLD)
+                    btn.setOnClickListener { 
+                        toggleCaps() 
+                    }
                 }
                 "⌫" -> {
                     btn.text = "⌫"
-                    btn.setOnClickListener { handleDelete() }
                     btn.background = keyBg(colorSpecialBg)
                     btn.textSize = 15f
                     btn.setTypeface(null, Typeface.BOLD)
+                    btn.setOnClickListener { 
+                        handleDelete() 
+                    }
                 }
                 "SPACE" -> {
                     btn.text = if (currentLang == "en") "English" else "বাংলা"
-                    btn.setOnClickListener { sendChar(' ') }
                     btn.background = keyBg(colorKeyBg)
                     btn.textSize = 15f
                     btn.setTextColor(Color.parseColor("#5f6368"))
+                    btn.setOnClickListener { 
+                        sendChar(' ') 
+                    }
                 }
                 "↵" -> {
                     btn.text = "↵"
                     btn.background = keyBg(colorAccent)
                     btn.setTextColor(Color.WHITE)
-                    btn.setOnClickListener { handleEnter() }
+                    btn.setOnClickListener { 
+                        handleEnter() 
+                    }
                 }
                 "123", "?123" -> {
                     btn.text = "123"
                     btn.background = keyBg(colorSpecialBg)
-                    btn.setOnClickListener { show("Numbers coming soon") }
+                    btn.setOnClickListener { 
+                        show("Numbers coming soon") 
+                    }
                 }
                 else -> {
                     btn.text = if (isCaps && currentLang == "en") key.uppercase() else key
-                    btn.setOnClickListener {
+                    btn.background = keyBg(colorKeyBg)
+                    btn.textSize = 20f
+                    btn.setOnClickListener { 
                         sendText(btn.text.toString())
                         if (isCaps && currentLang == "en") {
                             isCaps = false
                             rebuildKeys()
                         }
                     }
-                    btn.background = keyBg(colorKeyBg)
                 }
             }
 
-            btn.setTextColor(if (key == "↵") Color.WHITE else colorKeyText)
-            btn.textSize = when {
-                key == "SPACE" -> 15f
-                key.length > 2 -> 15f
-                key in listOf("⇧", "⇪", "⌫", "123", "?123", "↵") -> 15f
-                else -> 20f
+            // Set text size based on key type
+            when {
+                key == "SPACE" -> btn.textSize = 15f
+                key.length > 2 -> btn.textSize = 15f
+                key in listOf("⇧", "⇪", "⌫", "123", "?123", "↵") -> btn.textSize = 15f
+                else -> btn.textSize = 20f
             }
 
             val weight = when {
@@ -290,6 +315,10 @@ class PixelProKeyboard : android.inputmethodservice.InputMethodService() {
                 btn.stateListAnimator = null
             }
 
+            // Make button clickable
+            btn.isClickable = true
+            btn.isFocusable = true
+
             row.addView(btn)
         }
 
@@ -303,25 +332,34 @@ class PixelProKeyboard : android.inputmethodservice.InputMethodService() {
             setColorFilter(colorIcon)
             background = null
             scaleType = android.widget.ImageView.ScaleType.CENTER
+            isClickable = true
+            isFocusable = true
             setOnClickListener { action() }
         }
     }
 
     private fun makeSuggTv(gravity: Int): TextView {
         return TextView(this).apply {
-            layoutParams = LinearLayout.LayoutParams(0, -1, 1f)
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f)
             this.gravity = gravity or Gravity.CENTER_VERTICAL
             setPadding(dp(12), 0, dp(12), 0)
             textSize = 16f
             setTextColor(colorKeyText)
             typeface = Typeface.DEFAULT_BOLD
-            setOnClickListener { usePrediction(text.toString()) }
+            isClickable = true
+            isFocusable = true
+            setOnClickListener { 
+                val word = text.toString()
+                if (word.isNotEmpty()) {
+                    sendText("$word ")
+                }
+            }
         }
     }
 
     private fun makeDivider(): View {
         return View(this).apply {
-            layoutParams = LinearLayout.LayoutParams(1, -1).apply {
+            layoutParams = LinearLayout.LayoutParams(1, LinearLayout.LayoutParams.MATCH_PARENT).apply {
                 topMargin = dp(12)
                 bottomMargin = dp(12)
             }
@@ -358,8 +396,11 @@ class PixelProKeyboard : android.inputmethodservice.InputMethodService() {
         vibrate()
         currentInputConnection?.let { ic ->
             val sel = ic.getSelectedText(0)
-            if (sel.isNullOrEmpty()) ic.deleteSurroundingText(1, 0)
-            else ic.commitText("", 1)
+            if (sel.isNullOrEmpty()) {
+                ic.deleteSurroundingText(1, 0)
+            } else {
+                ic.commitText("", 1)
+            }
         }
         suggestionBar.visibility = View.GONE
     }
@@ -374,10 +415,6 @@ class PixelProKeyboard : android.inputmethodservice.InputMethodService() {
                 else -> ic.commitText("\n", 1)
             }
         }
-    }
-
-    private fun usePrediction(word: String) {
-        sendText("$word ")
     }
 
     private fun updateSuggestions(typed: String) {
@@ -547,13 +584,25 @@ class PixelProKeyboard : android.inputmethodservice.InputMethodService() {
     private fun show(msg: String) = Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
 
     private fun vibrate() {
-        val vib = getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            vib.vibrate(VibrationEffect.createOneShot(15, VibrationEffect.DEFAULT_AMPLITUDE))
-        } else vib.vibrate(15)
+        try {
+            val vib = getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                vib.vibrate(VibrationEffect.createOneShot(15, VibrationEffect.DEFAULT_AMPLITUDE))
+            } else {
+                vib.vibrate(15)
+            }
+        } catch (e: Exception) {
+            // Ignore vibration errors
+        }
     }
 
-    private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
+    private fun dp(v: Int): Int {
+        return if (::displayMetrics.isInitialized) {
+            (v * displayMetrics.density).toInt()
+        } else {
+            v
+        }
+    }
 
     override fun onDestroy() {
         super.onDestroy()
