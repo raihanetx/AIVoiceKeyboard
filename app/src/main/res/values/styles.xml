@@ -1,44 +1,84 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="KeyboardKey" parent="Widget.AppCompat.Button.Borderless">
-        <item name="android:layout_width">0dp</item>
-        <item name="android:layout_height">match_parent</item>
-        <item name="android:layout_weight">1</item>
-        <item name="android:layout_margin">2dp</item>
-        <item name="android:background">@drawable/key_bg</item>
-        <item name="android:textColor">#1F1F1F</item>
-        <item name="android:textSize">18sp</item>
-        <item name="android:textAllCaps">false</item>
-        <item name="android:gravity">center</item>
-        <item name="android:minHeight">0dp</item>
-        <item name="android:minWidth">0dp</item>
+    <!-- Base Application Theme -->
+    <style name="AppTheme" parent="Theme.MaterialComponents.Light.NoActionBar">
+        <!-- Customize your theme here. -->
     </style>
 
-    <style name="KeyboardKeySpecial" parent="Widget.AppCompat.Button.Borderless">
+    <!-- TOOLBAR BUTTON STYLE -->
+    <style name="KeyboardToolbarButton">
+        <item name="android:layout_width">44dp</item>
+        <item name="android:layout_height">40dp</item>
+        <item name="android:background">?attr/selectableItemBackgroundBorderless</item>
+        <item name="android:scaleType">center</item>
+        <item name="android:tint">#5f6368</item> <!-- Icon Color -->
+    </style>
+
+    <!-- SUGGESTION WORD STYLE -->
+    <style name="SuggestionWord">
         <item name="android:layout_width">0dp</item>
         <item name="android:layout_height">match_parent</item>
         <item name="android:layout_weight">1</item>
-        <item name="android:layout_margin">2dp</item>
-        <item name="android:background">@drawable/key_special_bg</item>
-        <item name="android:textColor">#1F1F1F</item>
+        <item name="android:gravity">center_vertical</item>
+        <item name="android:paddingStart">12dp</item>
+        <item name="android:paddingEnd">12dp</item>
         <item name="android:textSize">16sp</item>
-        <item name="android:textAllCaps">false</item>
-        <item name="android:gravity">center</item>
-        <item name="android:minHeight">0dp</item>
-        <item name="android:minWidth">0dp</item>
+        <item name="android:textColor">#202124</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:background">?attr/selectableItemBackground</item>
     </style>
 
-    <style name="KeyboardKeyAction" parent="Widget.AppCompat.Button.Borderless">
-        <item name="android:layout_width">0dp</item>
-        <item name="android:layout_height">match_parent</item>
-        <item name="android:layout_weight">1</item>
-        <item name="android:layout_margin">2dp</item>
-        <item name="android:background">@drawable/key_action_bg</item>
-        <item name="android:textColor">#FFFFFF</item>
-        <item name="android:textSize">18sp</item>
-        <item name="android:textAllCaps">false</item>
+    <!-- KEYBOARD ROW -->
+    <style name="KeyboardRow">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:orientation">horizontal</item>
         <item name="android:gravity">center</item>
-        <item name="android:minHeight">0dp</item>
-        <item name="android:minWidth">0dp</item>
+    </style>
+
+    <!-- KEY BUTTON STYLE (Box Shape) -->
+    <style name="KeyButton">
+        <item name="android:layout_width">0dp</item>
+        <item name="android:layout_height">42dp</item>
+        <item name="android:layout_weight">1</item>
+        <item name="android:layout_margin">3dp</item>
+        <item name="android:background">@drawable/bg_key_default</item>
+        <item name="android:textSize">20sp</item>
+        <item name="android:textColor">#202124</item>
+        <item name="android:textAllCaps">false</item>
+    </style>
+
+    <!-- Special Key (Shift, Delete, etc) -->
+    <style name="KeyButton.Sp">
+        <item name="android:layout_weight">1.3</item>
+        <item name="android:background">@drawable/bg_key_special</item>
+        <item name="android:textSize">15sp</item>
+        <item name="android:textStyle">bold</item>
+    </style>
+
+    <!-- Small Keys (Comma, Dot) -->
+    <style name="KeyButton.Small">
+        <item name="android:background">@drawable/bg_key_special</item>
+    </style>
+
+    <!-- Space Bar -->
+    <style name="KeyButton.Space">
+        <item name="android:layout_weight">5</item>
+        <item name="android:textSize">15sp</item>
+        <item name="android:textColor">#5f6368</item>
+    </style>
+
+    <!-- Enter Key -->
+    <style name="KeyButton.Enter">
+        <item name="android:layout_weight">1.6</item>
+        <item name="android:background">@drawable/bg_key_accent</item>
+        <item name="android:textColor">#FFFFFF</item>
+    </style>
+
+    <!-- Voice Visualizer Bar -->
+    <style name="VoiceBar">
+        <item name="android:layout_width">3dp</item>
+        <item name="android:layout_height">12dp</item>
+        <item name="android:background">#1a73e8</item>
     </style>
 </resources>

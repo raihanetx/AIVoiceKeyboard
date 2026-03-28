@@ -10,27 +10,22 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
-    
+
     - uses: actions/setup-java@v4
       with:
         java-version: '17'
         distribution: 'temurin'
         cache: gradle
-    
+
     - uses: android-actions/setup-android@v3
-    
+
     - name: Grant execute permission for gradlew
       run: chmod +x gradlew
-    
-    - name: Create local.properties with API key
-      run: |
-        echo "GROQ_API_KEY=${{ secrets.GROQ_API_KEY }}" > local.properties
-    
+
     - name: Build Debug APK
       run: ./gradlew assembleDebug --no-daemon
-    
-    - name: Upload APK artifact
-      uses: actions/upload-artifact@v4
+
+    - uses: actions/upload-artifact@v4
       with:
         name: app-debug
         path: app/build/outputs/apk/debug/*.apk
@@ -44,34 +39,37 @@ jobs:
       with:
         name: app-debug
         path: ./apk
-    
-    - name: Get version
-      id: version
-      run: echo "VERSION=v1.0.0-$(date +'%Y%m%d%H%M')" >> $GITHUB_OUTPUT
-    
+
     - name: Create Release
       uses: softprops/action-gh-release@v1
       with:
-        tag_name: ${{ steps.version.outputs.VERSION }}
-        name: AI Voice Keyboard ${{ steps.version.outputs.VERSION }}
+        tag_name: v1.0.4
+        name: PixelPro Keyboard v1.0.4
         body: |
-          ## AI Voice Keyboard
-          
+          ## PixelPro Keyboard v1.0.4
+
+          ### What's New
+          - Exact UI design implementation
+          - Toolbar with 6 buttons (emoji, clipboard, credentials, language, settings, voice)
+          - Suggestion bar with 3 word predictions
+          - Voice bar with language chip and visualizer
+          - QWERTY keyboard layout
+          - Caps lock functionality
+          - Language swap (English/Bangla)
+          - Vibration feedback on key press
+
           ### Features
-          - Voice typing with Android Offline
-          - Voice typing with Groq AI (Whisper Large V3)
-          - English QWERTY keyboard
-          - Bangla Probhat keyboard
-          - Number & Symbol keyboards
-          - Caps Lock support
-          - Lightweight APK (~2.5MB)
-          
-          ### How to Install
+          - Android SpeechRecognizer (Offline STT)
+          - Groq Whisper API (Online STT)
+          - Material Design Light Theme
+
+          ### Installation
           1. Download the APK
-          2. Enable "Install from Unknown Sources" in settings
+          2. Enable "Install from unknown sources"
           3. Install the APK
-          4. Open the app and enable the keyboard
-          5. Select "AI Voice Keyboard" as your input method
+          4. Go to Settings > System > Languages & input > On-screen keyboard
+          5. Enable "AI Voice Keyboard"
+          6. Set as default keyboard
         files: ./apk/*.apk
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
