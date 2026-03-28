@@ -5,6 +5,8 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Color
+import android.graphics.Typeface
+import android.graphics.drawable.GradientDrawable
 import android.media.MediaRecorder
 import android.os.Build
 import android.os.Bundle
@@ -13,8 +15,8 @@ import android.os.Vibrator
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
+import android.view.Gravity
 import android.view.View
-import android.view.ViewGroup
 import android.view.inputmethod.EditorInfo
 import android.widget.*
 import androidx.core.content.ContextCompat
@@ -39,35 +41,19 @@ class PixelProKeyboard : android.inputmethodservice.InputMethodService() {
     private val colorKeyText = Color.parseColor("#202124")
     private val colorSpecialBg = Color.parseColor("#DADCE0")
     private val colorAccent = Color.parseColor("#1A73E8")
+    private val colorIcon = Color.parseColor("#5f6368")
+    private val colorDivider = Color.parseColor("#1F000000")
 
-    // --- ROOT VIEW ---
-    private lateinit var rootView: View
-
-    // --- TOP AREA VIEWS ---
+    // --- VIEWS ---
+    private lateinit var container: LinearLayout
     private lateinit var toolbar: LinearLayout
     private lateinit var suggestionBar: LinearLayout
     private lateinit var voiceBar: LinearLayout
-
-    // --- TOOLBAR BUTTONS ---
-    private lateinit var btnEmoji: ImageButton
-    private lateinit var btnClipboard: ImageButton
-    private lateinit var btnCredentials: ImageButton
-    private lateinit var btnLanguage: ImageButton
-    private lateinit var btnSettings: ImageButton
-    private lateinit var btnVoice: ImageButton
-
-    // --- SUGGESTION VIEWS ---
+    private lateinit var keyGridContainer: LinearLayout
     private lateinit var tvSugg1: TextView
     private lateinit var tvSugg2: TextView
     private lateinit var tvSugg3: TextView
-
-    // --- VOICE BAR VIEWS ---
     private lateinit var tvVoiceLang: TextView
-    private lateinit var visualizerContainer: LinearLayout
-    private lateinit var btnStopVoice: ImageButton
-
-    // --- KEY GRID CONTAINER ---
-    private lateinit var keyGridContainer: LinearLayout
 
     // --- VOICE ---
     private var speechRecognizer: SpeechRecognizer? = null
@@ -93,95 +79,266 @@ class PixelProKeyboard : android.inputmethodservice.InputMethodService() {
     }
 
     override fun onCreateInputView(): View {
-        // Inflate the exact XML layout
-        rootView = layoutInflater.inflate(R.layout.keyboard_view, null)
-
-        // Initialize all views
-        initViews()
-
-        // Set up click listeners
-        setupClickListeners()
-
-        // Set up key listeners
-        setupKeyListeners()
-
-        return rootView
+        container = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setBackgroundColor(colorBg)
+            setPadding(0, dp(4), 0, dp(16))
+        }
+        setupTopArea()
+        setupKeyboardGrid()
+        return container
     }
 
-    private fun initViews() {
-        // Top area containers
-        toolbar = rootView.findViewById(R.id.toolbar)
-        suggestionBar = rootView.findViewById(R.id.suggestionBar)
-        voiceBar = rootView.findViewById(R.id.voiceBar)
+    private fun setupTopArea() {
+        val topArea = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+        }
 
-        // Toolbar buttons
-        btnEmoji = rootView.findViewById(R.id.btnEmoji)
-        btnClipboard = rootView.findViewById(R.id.btnClipboard)
-        btnCredentials = rootView.findViewById(R.id.btnCredentials)
-        btnLanguage = rootView.findViewById(R.id.btnLanguage)
-        btnSettings = rootView.findViewById(R.id.btnSettings)
-        btnVoice = rootView.findViewById(R.id.btnVoice)
+        // 1. TOOLBAR
+        toolbar = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            layoutParams = LinearLayout.LayoutParams(-1, dp(44))
+            setPadding(dp(4), 0, dp(4), 0)
+            gravity = Gravity.CENTER_VERTICAL
+        }
 
-        // Suggestion views
-        tvSugg1 = rootView.findViewById(R.id.tvSugg1)
-        tvSugg2 = rootView.findViewById(R.id.tvSugg2)
-        tvSugg3 = rootView.findViewById(R.id.tvSugg3)
+        // Left icons: Emoji, Clipboard, Credentials
+        toolbar.addView(makeToolbarBtn(R.drawable.ic_smile) { show("Emoji coming soon") })
+        toolbar.addView(makeToolbarBtn(R.drawable.ic_clipboard) { show("Clipboard coming soon") })
+        toolbar.addView(makeToolbarBtn(R.drawable.ic_key) { show("Credentials coming soon") })
 
-        // Voice bar views
-        tvVoiceLang = rootView.findViewById(R.id.tvVoiceLang)
-        visualizerContainer = rootView.findViewById(R.id.visualizerContainer)
-        btnStopVoice = rootView.findViewById(R.id.btnStopVoice)
+        // Spacer
+        toolbar.addView(View(this).apply { layoutParams = LinearLayout.LayoutParams(0, 1, 1f) })
 
-        // Key grid container
-        keyGridContainer = rootView.findViewById(R.id.keyGridContainer)
+        // Right icons: Language, Settings, Mic
+        toolbar.addView(makeToolbarBtn(R.drawable.ic_globe) { swapLanguage() })
+        toolbar.addView(makeToolbarBtn(R.drawable.ic_settings) { show("Settings coming soon") })
+        toolbar.addView(makeToolbarBtn(R.drawable.ic_mic) { toggleVoiceBar() })
+
+        topArea.addView(toolbar)
+
+        // 2. SUGGESTION BAR
+        suggestionBar = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            layoutParams = LinearLayout.LayoutParams(-1, dp(48))
+            weightSum = 3f
+            setBackgroundColor(Color.WHITE)
+            visibility = View.GONE
+        }
+
+        tvSugg1 = makeSuggTv(Gravity.START)
+        tvSugg2 = makeSuggTv(Gravity.CENTER)
+        tvSugg3 = makeSuggTv(Gravity.END)
+
+        suggestionBar.addView(tvSugg1)
+        suggestionBar.addView(makeDivider())
+        suggestionBar.addView(tvSugg2)
+        suggestionBar.addView(makeDivider())
+        suggestionBar.addView(tvSugg3)
+
+        topArea.addView(suggestionBar)
+
+        // 3. VOICE BAR
+        voiceBar = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            layoutParams = LinearLayout.LayoutParams(-1, dp(48))
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(16), dp(4), dp(16), dp(4))
+            setBackgroundColor(Color.WHITE)
+            visibility = View.GONE
+        }
+
+        // Language chip
+        tvVoiceLang = TextView(this).apply {
+            text = "English"
+            setTextColor(colorKeyText)
+            textSize = 14f
+            typeface = Typeface.DEFAULT_BOLD
+            setPadding(dp(12), dp(8), dp(12), dp(8))
+            background = roundedDrawable(colorSpecialBg, 20)
+            setOnClickListener { swapVoiceEngine() }
+        }
+        voiceBar.addView(tvVoiceLang)
+
+        // Visualizer
+        val visualizer = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            layoutParams = LinearLayout.LayoutParams(0, -1, 1f)
+            gravity = Gravity.CENTER
+        }
+        repeat(4) {
+            visualizer.addView(View(this).apply {
+                layoutParams = LinearLayout.LayoutParams(dp(3), dp(16)).apply {
+                    marginStart = dp(2)
+                    marginEnd = dp(2)
+                }
+                setBackgroundColor(colorAccent)
+            })
+        }
+        voiceBar.addView(visualizer)
+
+        // Stop button
+        val stopBtn = ImageButton(this).apply {
+            layoutParams = LinearLayout.LayoutParams(dp(36), dp(36))
+            setImageResource(R.drawable.ic_stop)
+            setColorFilter(Color.WHITE)
+            background = roundedDrawable(Color.parseColor("#EA4335"), 18)
+            setOnClickListener { toggleVoiceBar() }
+        }
+        voiceBar.addView(stopBtn)
+
+        topArea.addView(voiceBar)
+        container.addView(topArea)
     }
 
-    private fun setupClickListeners() {
-        // Toolbar buttons
-        btnEmoji.setOnClickListener { show("Emoji coming soon") }
-        btnClipboard.setOnClickListener { show("Clipboard coming soon") }
-        btnCredentials.setOnClickListener { show("Credentials coming soon") }
-        btnLanguage.setOnClickListener { swapLanguage() }
-        btnSettings.setOnClickListener { show("Settings coming soon") }
-        btnVoice.setOnClickListener { toggleVoiceBar() }
+    private fun setupKeyboardGrid() {
+        keyGridContainer = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(6), 0, dp(6), 0)
+        }
 
-        // Suggestion clicks
-        tvSugg1.setOnClickListener { usePrediction(tvSugg1.text.toString()) }
-        tvSugg2.setOnClickListener { usePrediction(tvSugg2.text.toString()) }
-        tvSugg3.setOnClickListener { usePrediction(tvSugg3.text.toString()) }
+        // English QWERTY layout
+        addKeyRow(listOf("q","w","e","r","t","y","u","i","o","p"))
+        addKeyRow(listOf("a","s","d","f","g","h","j","k","l"))
+        addKeyRow(listOf("⇧","z","x","c","v","b","n","m","⌫"), hasSpecial = true)
+        addKeyRow(listOf("123",",","SPACE",".","↵"), isBottom = true)
 
-        // Voice bar
-        tvVoiceLang.setOnClickListener { swapVoiceEngine() }
-        btnStopVoice.setOnClickListener { toggleVoiceBar() }
+        container.addView(keyGridContainer)
     }
 
-    private fun setupKeyListeners() {
-        // Loop through all rows in keyGridContainer
-        for (i in 0 until keyGridContainer.childCount) {
-            val row = keyGridContainer.getChildAt(i) as? LinearLayout ?: continue
+    private fun addKeyRow(keys: List<String>, hasSpecial: Boolean = false, isBottom: Boolean = false) {
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            layoutParams = LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(3) }
+            gravity = Gravity.CENTER
+        }
 
-            for (j in 0 until row.childCount) {
-                val btn = row.getChildAt(j) as? Button ?: continue
-                val keyText = btn.text.toString()
+        keys.forEach { key ->
+            val btn = Button(this)
+            btn.isAllCaps = false
 
-                btn.setOnClickListener {
-                    when (keyText) {
-                        "⇧", "⇪" -> toggleCaps()
-                        "⌫" -> handleDelete()
-                        "↵" -> handleEnter()
-                        "123", "?123" -> show("Numbers coming soon")
-                        "English", "বাংলা" -> sendChar(' ')
-                        else -> {
-                            sendText(keyText)
-                            if (isCaps && currentLang == "en") {
-                                isCaps = false
-                                rebuildKeys()
-                            }
+            when (key) {
+                "⇧" -> {
+                    btn.text = if (isCaps) "⇪" else "⇧"
+                    btn.setOnClickListener { toggleCaps() }
+                    btn.background = keyBg(colorSpecialBg)
+                    btn.textSize = 15f
+                    btn.setTypeface(null, Typeface.BOLD)
+                }
+                "⌫" -> {
+                    btn.text = "⌫"
+                    btn.setOnClickListener { handleDelete() }
+                    btn.background = keyBg(colorSpecialBg)
+                    btn.textSize = 15f
+                    btn.setTypeface(null, Typeface.BOLD)
+                }
+                "SPACE" -> {
+                    btn.text = if (currentLang == "en") "English" else "বাংলা"
+                    btn.setOnClickListener { sendChar(' ') }
+                    btn.background = keyBg(colorKeyBg)
+                    btn.textSize = 15f
+                    btn.setTextColor(Color.parseColor("#5f6368"))
+                }
+                "↵" -> {
+                    btn.text = "↵"
+                    btn.background = keyBg(colorAccent)
+                    btn.setTextColor(Color.WHITE)
+                    btn.setOnClickListener { handleEnter() }
+                }
+                "123", "?123" -> {
+                    btn.text = "123"
+                    btn.background = keyBg(colorSpecialBg)
+                    btn.setOnClickListener { show("Numbers coming soon") }
+                }
+                else -> {
+                    btn.text = if (isCaps && currentLang == "en") key.uppercase() else key
+                    btn.setOnClickListener {
+                        sendText(btn.text.toString())
+                        if (isCaps && currentLang == "en") {
+                            isCaps = false
+                            rebuildKeys()
                         }
                     }
+                    btn.background = keyBg(colorKeyBg)
                 }
             }
+
+            btn.setTextColor(if (key == "↵") Color.WHITE else colorKeyText)
+            btn.textSize = when {
+                key == "SPACE" -> 15f
+                key.length > 2 -> 15f
+                key in listOf("⇧", "⇪", "⌫", "123", "?123", "↵") -> 15f
+                else -> 20f
+            }
+
+            val weight = when {
+                isBottom && key == "SPACE" -> 5f
+                isBottom && (key == "123" || key == "?123") -> 1.3f
+                isBottom && key == "↵" -> 1.6f
+                isBottom && key in listOf(",", ".") -> 1f
+                hasSpecial && key in listOf("⇧", "⇪", "⌫") -> 1.3f
+                else -> 1f
+            }
+
+            btn.layoutParams = LinearLayout.LayoutParams(0, dp(42)).apply {
+                this.weight = weight
+                marginStart = dp(3)
+                marginEnd = dp(3)
+            }
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                btn.stateListAnimator = null
+            }
+
+            row.addView(btn)
         }
+
+        keyGridContainer.addView(row)
+    }
+
+    private fun makeToolbarBtn(iconRes: Int, action: () -> Unit): ImageButton {
+        return ImageButton(this).apply {
+            layoutParams = LinearLayout.LayoutParams(dp(44), dp(40))
+            setImageResource(iconRes)
+            setColorFilter(colorIcon)
+            background = null
+            scaleType = android.widget.ImageView.ScaleType.CENTER
+            setOnClickListener { action() }
+        }
+    }
+
+    private fun makeSuggTv(gravity: Int): TextView {
+        return TextView(this).apply {
+            layoutParams = LinearLayout.LayoutParams(0, -1, 1f)
+            this.gravity = gravity or Gravity.CENTER_VERTICAL
+            setPadding(dp(12), 0, dp(12), 0)
+            textSize = 16f
+            setTextColor(colorKeyText)
+            typeface = Typeface.DEFAULT_BOLD
+            setOnClickListener { usePrediction(text.toString()) }
+        }
+    }
+
+    private fun makeDivider(): View {
+        return View(this).apply {
+            layoutParams = LinearLayout.LayoutParams(1, -1).apply {
+                topMargin = dp(12)
+                bottomMargin = dp(12)
+            }
+            setBackgroundColor(colorDivider)
+        }
+    }
+
+    private fun keyBg(color: Int): GradientDrawable = GradientDrawable().apply {
+        shape = GradientDrawable.RECTANGLE
+        cornerRadius = dp(6).toFloat()
+        setColor(color)
+    }
+
+    private fun roundedDrawable(color: Int, radiusDp: Int): GradientDrawable = GradientDrawable().apply {
+        shape = GradientDrawable.RECTANGLE
+        cornerRadius = dp(radiusDp).toFloat()
+        setColor(color)
     }
 
     // --- INPUT LOGIC ---
@@ -251,111 +408,20 @@ class PixelProKeyboard : android.inputmethodservice.InputMethodService() {
     }
 
     private fun rebuildKeys() {
-        // Clear current key grid
         keyGridContainer.removeAllViews()
 
         if (currentLang == "en") {
-            // Build English QWERTY layout
             addKeyRow(listOf("q","w","e","r","t","y","u","i","o","p"))
             addKeyRow(listOf("a","s","d","f","g","h","j","k","l"))
             addKeyRow(listOf("⇧","z","x","c","v","b","n","m","⌫"), hasSpecial = true)
             addKeyRow(listOf("123",",","SPACE",".","↵"), isBottom = true)
         } else {
-            // Build Bangla layout
             banglaRows.forEachIndexed { i, row ->
                 val special = (i == 2)
                 val bottom = (i == banglaRows.lastIndex)
                 addKeyRow(row, hasSpecial = special, isBottom = bottom)
             }
         }
-
-        // Re-attach listeners
-        setupKeyListeners()
-    }
-
-    private fun addKeyRow(keys: List<String>, hasSpecial: Boolean = false, isBottom: Boolean = false) {
-        val row = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            layoutParams = LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT
-            ).apply { topMargin = dp(4) }
-            gravity = android.view.Gravity.CENTER
-        }
-
-        keys.forEach { key ->
-            val btn = Button(this@PixelProKeyboard)
-
-            when (key) {
-                "⇧" -> {
-                    btn.text = if (isCaps) "⇪" else "⇧"
-                    btn.setBackgroundResource(R.drawable.bg_key_special)
-                    btn.textSize = 15f
-                    btn.setTypeface(null, android.graphics.Typeface.BOLD)
-                }
-                "⌫" -> {
-                    btn.text = "⌫"
-                    btn.setBackgroundResource(R.drawable.bg_key_special)
-                    btn.textSize = 15f
-                    btn.setTypeface(null, android.graphics.Typeface.BOLD)
-                }
-                "SPACE" -> {
-                    btn.text = if (currentLang == "en") "English" else "বাংলা"
-                    btn.setBackgroundResource(R.drawable.bg_key_default)
-                    btn.textSize = 15f
-                    btn.setTextColor(Color.parseColor("#5f6368"))
-                }
-                "↵" -> {
-                    btn.text = "↵"
-                    btn.setBackgroundResource(R.drawable.bg_key_accent)
-                    btn.setTextColor(Color.WHITE)
-                }
-                "123", "?123" -> {
-                    btn.text = "123"
-                    btn.setBackgroundResource(R.drawable.bg_key_special)
-                    btn.textSize = 15f
-                }
-                else -> {
-                    btn.text = if (isCaps && currentLang == "en") key.uppercase() else key
-                    btn.setBackgroundResource(R.drawable.bg_key_default)
-                    btn.textSize = 20f
-                }
-            }
-
-            btn.setTextColor(if (key == "↵") Color.WHITE else colorKeyText)
-            btn.textSize = when {
-                key == "SPACE" -> 15f
-                key.length > 2 -> 15f
-                key in listOf("⇧", "⇪", "⌫", "123", "?123", "↵") -> 15f
-                else -> 20f
-            }
-            btn.isAllCaps = false
-
-            val weight = when {
-                isBottom && key == "SPACE" -> 5f
-                isBottom && (key == "123" || key == "?123") -> 1.3f
-                isBottom && key == "↵" -> 1.6f
-                isBottom && key in listOf(",", ".") -> 1f
-                hasSpecial && key in listOf("⇧", "⇪", "⌫") -> 1.3f
-                else -> 1f
-            }
-
-            btn.layoutParams = LinearLayout.LayoutParams(
-                0, dp(42)
-            ).apply {
-                this.weight = weight
-                marginStart = dp(3)
-                marginEnd = dp(3)
-            }
-
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                btn.stateListAnimator = null
-            }
-
-            row.addView(btn)
-        }
-
-        keyGridContainer.addView(row)
     }
 
     // --- VOICE LOGIC ---
