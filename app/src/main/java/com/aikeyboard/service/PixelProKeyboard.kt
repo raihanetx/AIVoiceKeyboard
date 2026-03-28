@@ -10,6 +10,8 @@ import android.graphics.drawable.GradientDrawable
 import android.media.MediaRecorder
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.speech.RecognitionListener
@@ -18,6 +20,7 @@ import android.speech.SpeechRecognizer
 import android.util.DisplayMetrics
 import android.view.Gravity
 import android.view.View
+import android.view.animation.AnimationUtils
 import android.view.inputmethod.EditorInfo
 import android.widget.*
 import androidx.core.content.ContextCompat
@@ -28,6 +31,7 @@ import okhttp3.*
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody.Companion.asRequestBody
 import java.io.File
+import java.io.IOException
 
 class PixelProKeyboard : android.inputmethodservice.InputMethodService() {
 
@@ -44,6 +48,7 @@ class PixelProKeyboard : android.inputmethodservice.InputMethodService() {
     private val colorAccent = Color.parseColor("#1A73E8")
     private val colorIcon = Color.parseColor("#5f6368")
     private val colorDivider = Color.parseColor("#1F000000")
+    private val colorError = Color.parseColor("#EA4335")
 
     // --- VIEWS ---
     private lateinit var container: LinearLayout
@@ -55,6 +60,8 @@ class PixelProKeyboard : android.inputmethodservice.InputMethodService() {
     private lateinit var tvSugg2: TextView
     private lateinit var tvSugg3: TextView
     private lateinit var tvVoiceLang: TextView
+    private lateinit var tvVoiceStatus: TextView
+    private lateinit var visualizerBars: MutableList<View>
 
     // --- VOICE ---
     private var speechRecognizer: SpeechRecognizer? = null
@@ -62,10 +69,15 @@ class PixelProKeyboard : android.inputmethodservice.InputMethodService() {
     private var audioFile: File? = null
     private var isVoiceActive = false
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
-    private val client = OkHttpClient()
+    private val client = OkHttpClient.Builder()
+        .connectTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+        .writeTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+        .readTimeout(60, java.util.concurrent.TimeUnit.SECONDS)
+        .build()
 
     // Display metrics for dp conversion
     private lateinit var displayMetrics: DisplayMetrics
+    private val mainHandler = Handler(Looper.getMainLooper())
 
     // Bangla layout
     private val banglaRows = listOf(
@@ -79,19 +91,29 @@ class PixelProKeyboard : android.inputmethodservice.InputMethodService() {
 
     override fun onCreate() {
         super.onCreate()
-        displayMetrics = resources.displayMetrics
-        speechRecognizer = SpeechRecognizer.createSpeechRecognizer(this)
+        try {
+            displayMetrics = resources.displayMetrics
+            speechRecognizer = SpeechRecognizer.createSpeechRecognizer(this)
+        } catch (e: Exception) {
+            android.util.Log.e("PixelProKeyboard", "onCreate error", e)
+        }
     }
 
     override fun onCreateInputView(): View {
-        container = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setBackgroundColor(colorBg)
-            setPadding(0, dp(4), 0, dp(16))
+        return try {
+            container = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                setBackgroundColor(colorBg)
+                setPadding(0, dp(4), 0, dp(16))
+            }
+            visualizerBars = mutableListOf()
+            setupTopArea()
+            setupKeyboardGrid()
+            container
+        } catch (e: Exception) {
+            android.util.Log.e("PixelProKeyboard", "onCreateInputView error", e)
+            TextView(this).apply { text = "Keyboard error: ${e.message}" }
         }
-        setupTopArea()
-        setupKeyboardGrid()
-        return container
     }
 
     private fun setupTopArea() {
@@ -105,6 +127,7 @@ class PixelProKeyboard : android.inputmethodservice.InputMethodService() {
             layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(44))
             setPadding(dp(4), 0, dp(4), 0)
             gravity = Gravity.CENTER_VERTICAL
+            setBackgroundColor(colorBg)
         }
 
         // Left icons: Emoji, Clipboard, Credentials
@@ -148,48 +171,76 @@ class PixelProKeyboard : android.inputmethodservice.InputMethodService() {
         // 3. VOICE BAR
         voiceBar = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
-            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(48))
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(52))
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(16), dp(4), dp(16), dp(4))
+            setPadding(dp(12), dp(4), dp(12), dp(4))
             setBackgroundColor(Color.WHITE)
             visibility = View.GONE
         }
 
         // Language chip
         tvVoiceLang = TextView(this).apply {
-            text = "English"
+            text = "English (Android)"
             setTextColor(colorKeyText)
-            textSize = 14f
+            textSize = 13f
             typeface = Typeface.DEFAULT_BOLD
-            setPadding(dp(12), dp(8), dp(12), dp(8))
-            background = roundedDrawable(colorSpecialBg, 20)
+            setPadding(dp(10), dp(6), dp(10), dp(6))
+            background = roundedDrawable(colorSpecialBg, 16)
+            isClickable = true
+            isFocusable = true
             setOnClickListener { swapVoiceEngine() }
         }
         voiceBar.addView(tvVoiceLang)
 
+        // Center container for status + visualizer
+        val centerContainer = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f)
+            gravity = Gravity.CENTER
+            setPadding(dp(8), 0, dp(8), 0)
+        }
+
+        // Status text
+        tvVoiceStatus = TextView(this).apply {
+            text = "Tap mic to start"
+            textSize = 12f
+            setTextColor(colorIcon)
+            gravity = Gravity.CENTER
+        }
+        centerContainer.addView(tvVoiceStatus)
+
         // Visualizer
         val visualizer = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
-            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f)
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, dp(20))
             gravity = Gravity.CENTER
         }
-        repeat(4) {
-            visualizer.addView(View(this).apply {
-                layoutParams = LinearLayout.LayoutParams(dp(3), dp(16)).apply {
+
+        visualizerBars.clear()
+        repeat(5) {
+            val bar = View(this).apply {
+                layoutParams = LinearLayout.LayoutParams(dp(4), dp(8)).apply {
                     marginStart = dp(2)
                     marginEnd = dp(2)
                 }
                 setBackgroundColor(colorAccent)
-            })
+                alpha = 0.3f
+            }
+            visualizerBars.add(bar)
+            visualizer.addView(bar)
         }
-        voiceBar.addView(visualizer)
+        centerContainer.addView(visualizer)
+        voiceBar.addView(centerContainer)
 
         // Stop button
         val stopBtn = ImageButton(this).apply {
-            layoutParams = LinearLayout.LayoutParams(dp(36), dp(36))
+            layoutParams = LinearLayout.LayoutParams(dp(40), dp(40))
             setImageResource(R.drawable.ic_stop)
             setColorFilter(Color.WHITE)
-            background = roundedDrawable(Color.parseColor("#EA4335"), 18)
+            background = roundedDrawable(colorError, 20)
+            scaleType = android.widget.ImageView.ScaleType.CENTER_INSIDE
+            isClickable = true
+            isFocusable = true
             setOnClickListener { toggleVoiceBar() }
         }
         voiceBar.addView(stopBtn)
@@ -227,8 +278,6 @@ class PixelProKeyboard : android.inputmethodservice.InputMethodService() {
             val btn = Button(this)
             btn.isAllCaps = false
             btn.setAllCaps(false)
-
-            // Set text color first
             btn.setTextColor(if (key == "↵") Color.WHITE else colorKeyText)
 
             when (key) {
@@ -237,42 +286,33 @@ class PixelProKeyboard : android.inputmethodservice.InputMethodService() {
                     btn.background = keyBg(colorSpecialBg)
                     btn.textSize = 15f
                     btn.setTypeface(null, Typeface.BOLD)
-                    btn.setOnClickListener { 
-                        toggleCaps() 
-                    }
+                    btn.setOnClickListener { toggleCaps() }
                 }
                 "⌫" -> {
                     btn.text = "⌫"
                     btn.background = keyBg(colorSpecialBg)
                     btn.textSize = 15f
                     btn.setTypeface(null, Typeface.BOLD)
-                    btn.setOnClickListener { 
-                        handleDelete() 
-                    }
+                    btn.setOnClickListener { handleDelete() }
                 }
                 "SPACE" -> {
                     btn.text = if (currentLang == "en") "English" else "বাংলা"
                     btn.background = keyBg(colorKeyBg)
-                    btn.textSize = 15f
+                    btn.textSize = 14f
                     btn.setTextColor(Color.parseColor("#5f6368"))
-                    btn.setOnClickListener { 
-                        sendChar(' ') 
-                    }
+                    btn.setOnClickListener { sendChar(' ') }
                 }
                 "↵" -> {
                     btn.text = "↵"
                     btn.background = keyBg(colorAccent)
                     btn.setTextColor(Color.WHITE)
-                    btn.setOnClickListener { 
-                        handleEnter() 
-                    }
+                    btn.setOnClickListener { handleEnter() }
                 }
                 "123", "?123" -> {
                     btn.text = "123"
                     btn.background = keyBg(colorSpecialBg)
-                    btn.setOnClickListener { 
-                        show("Numbers coming soon") 
-                    }
+                    btn.textSize = 14f
+                    btn.setOnClickListener { show("Numbers coming soon") }
                 }
                 else -> {
                     btn.text = if (isCaps && currentLang == "en") key.uppercase() else key
@@ -290,8 +330,8 @@ class PixelProKeyboard : android.inputmethodservice.InputMethodService() {
 
             // Set text size based on key type
             when {
-                key == "SPACE" -> btn.textSize = 15f
-                key.length > 2 -> btn.textSize = 15f
+                key == "SPACE" -> btn.textSize = 14f
+                key.length > 2 -> btn.textSize = 14f
                 key in listOf("⇧", "⇪", "⌫", "123", "?123", "↵") -> btn.textSize = 15f
                 else -> btn.textSize = 20f
             }
@@ -305,7 +345,7 @@ class PixelProKeyboard : android.inputmethodservice.InputMethodService() {
                 else -> 1f
             }
 
-            btn.layoutParams = LinearLayout.LayoutParams(0, dp(42)).apply {
+            btn.layoutParams = LinearLayout.LayoutParams(0, dp(44)).apply {
                 this.weight = weight
                 marginStart = dp(3)
                 marginEnd = dp(3)
@@ -315,7 +355,6 @@ class PixelProKeyboard : android.inputmethodservice.InputMethodService() {
                 btn.stateListAnimator = null
             }
 
-            // Make button clickable
             btn.isClickable = true
             btn.isFocusable = true
 
@@ -477,6 +516,7 @@ class PixelProKeyboard : android.inputmethodservice.InputMethodService() {
     }
 
     private fun swapVoiceEngine() {
+        vibrate()
         voiceEngine = if (voiceEngine == "android") "groq" else "android"
         val langName = if (currentLang == "en") "English" else "বাংলা"
         tvVoiceLang.text = "$langName (${voiceEngine.replaceFirstChar { it.uppercase() }})"
@@ -484,12 +524,15 @@ class PixelProKeyboard : android.inputmethodservice.InputMethodService() {
     }
 
     private fun startVoice() {
+        // Check permission
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
-            show("Grant microphone permission")
+            show("Please grant microphone permission in Settings")
+            tvVoiceStatus.text = "No permission"
             return
         }
 
         isVoiceActive = true
+        animateVisualizer(true)
 
         when (voiceEngine) {
             "android" -> startAndroidVoice()
@@ -499,39 +542,116 @@ class PixelProKeyboard : android.inputmethodservice.InputMethodService() {
 
     private fun stopVoice() {
         isVoiceActive = false
+        animateVisualizer(false)
+
         when (voiceEngine) {
-            "android" -> speechRecognizer?.stopListening()
+            "android" -> {
+                try {
+                    speechRecognizer?.stopListening()
+                } catch (e: Exception) {
+                    android.util.Log.e("PixelProKeyboard", "stopListening error", e)
+                }
+            }
             "groq" -> stopGroqVoice()
         }
     }
 
     private fun startAndroidVoice() {
-        speechRecognizer?.setRecognitionListener(object : RecognitionListener {
-            override fun onReadyForSpeech(p0: Bundle?) {}
-            override fun onBeginningOfSpeech() {}
-            override fun onRmsChanged(p0: Float) {}
-            override fun onBufferReceived(p0: ByteArray?) {}
-            override fun onEndOfSpeech() { if (isVoiceActive) startAndroidVoice() }
-            override fun onError(p0: Int) { if (isVoiceActive && p0 != 7) startAndroidVoice() }
-            override fun onResults(results: Bundle?) {
-                results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull()?.let { sendText(it) }
-                if (isVoiceActive) startAndroidVoice()
-            }
-            override fun onPartialResults(p0: Bundle?) {}
-            override fun onEvent(p0: Int, p1: Bundle?) {}
-        })
+        tvVoiceStatus.text = "Listening..."
 
-        speechRecognizer?.startListening(Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE, if (currentLang == "bn") "bn-BD" else "en-US")
-            putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
-        })
+        try {
+            speechRecognizer?.setRecognitionListener(object : RecognitionListener {
+                override fun onReadyForSpeech(p0: Bundle?) {
+                    tvVoiceStatus.text = "Speak now..."
+                }
+
+                override fun onBeginningOfSpeech() {
+                    tvVoiceStatus.text = "Listening..."
+                }
+
+                override fun onRmsChanged(rms: Float) {
+                    // Animate visualizer based on volume
+                    val normalizedRms = (rms / 10).coerceIn(0f, 1f)
+                    visualizerBars.forEachIndexed { i, bar ->
+                        val height = dp(8 + (normalizedRms * 12 * (i % 2 + 1)).toInt())
+                        bar.layoutParams.height = height
+                        bar.alpha = 0.5f + normalizedRms * 0.5f
+                        bar.requestLayout()
+                    }
+                }
+
+                override fun onBufferReceived(p0: ByteArray?) {}
+
+                override fun onEndOfSpeech() {
+                    if (isVoiceActive) {
+                        tvVoiceStatus.text = "Processing..."
+                        startAndroidVoice()
+                    }
+                }
+
+                override fun onError(error: Int) {
+                    val errorMsg = when (error) {
+                        SpeechRecognizer.ERROR_AUDIO -> "Audio error"
+                        SpeechRecognizer.ERROR_CLIENT -> "Client error"
+                        SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "Permission denied"
+                        SpeechRecognizer.ERROR_NETWORK -> "Network error"
+                        SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> "Network timeout"
+                        SpeechRecognizer.ERROR_NO_MATCH -> "No speech detected"
+                        SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> "Recognizer busy"
+                        SpeechRecognizer.ERROR_SERVER -> "Server error"
+                        SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "Speech timeout"
+                        else -> "Error: $error"
+                    }
+                    tvVoiceStatus.text = errorMsg
+                    
+                    if (isVoiceActive && error != SpeechRecognizer.ERROR_NO_MATCH && error != SpeechRecognizer.ERROR_SPEECH_TIMEOUT) {
+                        mainHandler.postDelayed({ if (isVoiceActive) startAndroidVoice() }, 1000)
+                    }
+                }
+
+                override fun onResults(results: Bundle?) {
+                    results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull()?.let { 
+                        sendText(it)
+                    }
+                    if (isVoiceActive) startAndroidVoice()
+                }
+
+                override fun onPartialResults(partial: Bundle?) {
+                    partial?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull()?.let {
+                        tvVoiceStatus.text = it
+                    }
+                }
+
+                override fun onEvent(p0: Int, p1: Bundle?) {}
+            })
+
+            val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                putExtra(RecognizerIntent.EXTRA_LANGUAGE, if (currentLang == "bn") "bn-BD" else "en-US")
+                putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
+                putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
+            }
+            speechRecognizer?.startListening(intent)
+
+        } catch (e: Exception) {
+            android.util.Log.e("PixelProKeyboard", "startAndroidVoice error", e)
+            tvVoiceStatus.text = "Voice error: ${e.message}"
+            show("Voice recognition failed")
+        }
     }
 
     private fun startGroqVoice() {
+        tvVoiceStatus.text = "Recording..."
+
         try {
-            audioFile = File(cacheDir, "voice.m4a")
-            mediaRecorder = MediaRecorder().apply {
+            audioFile = File(cacheDir, "voice_${System.currentTimeMillis()}.m4a")
+            
+            mediaRecorder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                MediaRecorder(this)
+            } else {
+                @Suppress("DEPRECATION")
+                MediaRecorder()
+            }.apply {
                 setAudioSource(MediaRecorder.AudioSource.MIC)
                 setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
                 setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
@@ -541,73 +661,171 @@ class PixelProKeyboard : android.inputmethodservice.InputMethodService() {
                 prepare()
                 start()
             }
-        } catch (e: Exception) { show("Recording failed") }
+
+            // Simulate visualizer animation for Groq
+            groqVisualizerJob = scope.launch {
+                var amplitude = 0
+                while (isVoiceActive) {
+                    amplitude = (amplitude + 1) % 10
+                    withContext(Dispatchers.Main) {
+                        visualizerBars.forEachIndexed { i, bar ->
+                            val height = dp(8 + ((Math.sin((amplitude + i).toDouble()) + 1) * 6).toInt())
+                            bar.layoutParams.height = height
+                            bar.alpha = 0.5f + (Math.sin((amplitude + i).toDouble()).toFloat() * 0.25f) + 0.25f
+                            bar.requestLayout()
+                        }
+                    }
+                    delay(100)
+                }
+            }
+
+        } catch (e: Exception) {
+            android.util.Log.e("PixelProKeyboard", "startGroqVoice error", e)
+            tvVoiceStatus.text = "Recording failed"
+            show("Failed to start recording: ${e.message}")
+        }
     }
 
+    private var groqVisualizerJob: Job? = null
+
     private fun stopGroqVoice() {
+        groqVisualizerJob?.cancel()
+        groqVisualizerJob = null
+
         try {
-            mediaRecorder?.apply { stop(); release() }
+            mediaRecorder?.apply { 
+                stop()
+                release() 
+            }
             mediaRecorder = null
-            audioFile?.let { if (it.exists() && it.length() > 0) sendToGroq(it) }
-        } catch (e: Exception) {}
+
+            audioFile?.let { file ->
+                if (file.exists() && file.length() > 1000) {
+                    tvVoiceStatus.text = "Transcribing..."
+                    sendToGroq(file)
+                } else {
+                    tvVoiceStatus.text = "Recording too short"
+                }
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("PixelProKeyboard", "stopGroqVoice error", e)
+            tvVoiceStatus.text = "Error processing audio"
+        }
         audioFile = null
     }
 
     private fun sendToGroq(file: File) {
         scope.launch(Dispatchers.IO) {
             try {
-                val body = MultipartBody.Builder()
+                val requestBody = MultipartBody.Builder()
                     .setType(MultipartBody.FORM)
                     .addFormDataPart("model", "whisper-large-v3")
                     .addFormDataPart("file", "audio.m4a", file.asRequestBody("audio/mp4".toMediaType()))
                     .addFormDataPart("language", if (currentLang == "bn") "bn" else "en")
+                    .addFormDataPart("response_format", "json")
                     .build()
 
-                val req = Request.Builder()
+                val request = Request.Builder()
                     .url("https://api.groq.com/openai/v1/audio/transcriptions")
                     .addHeader("Authorization", "Bearer ${BuildConfig.GROQ_API_KEY}")
-                    .post(body)
+                    .post(requestBody)
                     .build()
 
-                val resp = client.newCall(req).execute()
-                if (resp.isSuccessful) {
-                    val txt = resp.body?.string()?.substringAfter("\"text\":\"")?.substringBefore("\"")
-                        ?.replace("\\n", "\n")?.replace("\\\"", "\"") ?: ""
-                    withContext(Dispatchers.Main) { sendText(txt) }
+                val response = client.newCall(request).execute()
+
+                withContext(Dispatchers.Main) {
+                    if (response.isSuccessful) {
+                        val responseBody = response.body?.string()
+                        val text = responseBody?.substringAfter("\"text\":\"")?.substringBefore("\"")
+                            ?.replace("\\n", "\n")
+                            ?.replace("\\\"", "\"")
+                            ?.replace("\\'", "'")
+                            ?: ""
+                        
+                        if (text.isNotEmpty()) {
+                            sendText(text)
+                            tvVoiceStatus.text = "Done!"
+                        } else {
+                            tvVoiceStatus.text = "No speech detected"
+                        }
+                    } else {
+                        val errorCode = response.code
+                        tvVoiceStatus.text = "API Error: $errorCode"
+                        when (errorCode) {
+                            401 -> show("Invalid API key")
+                            429 -> show("Rate limit exceeded")
+                            500, 502, 503 -> show("Server error, try again")
+                            else -> show("API Error: $errorCode")
+                        }
+                    }
+                    response.body?.close()
                 }
-            } catch (e: Exception) {}
+
+            } catch (e: IOException) {
+                withContext(Dispatchers.Main) {
+                    tvVoiceStatus.text = "Network error"
+                    show("Network error: ${e.message}")
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    tvVoiceStatus.text = "Error"
+                    show("Error: ${e.message}")
+                }
+            } finally {
+                // Clean up audio file
+                try {
+                    file.delete()
+                } catch (e: Exception) {}
+            }
+        }
+    }
+
+    private fun animateVisualizer(active: Boolean) {
+        visualizerBars.forEach { bar ->
+            bar.alpha = if (active) 0.5f else 0.3f
+            bar.layoutParams.height = dp(if (active) 12 else 8)
+            bar.requestLayout()
         }
     }
 
     // --- UTILS ---
 
-    private fun show(msg: String) = Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
+    private fun show(msg: String) {
+        Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
+        android.util.Log.d("PixelProKeyboard", msg)
+    }
 
     private fun vibrate() {
         try {
-            val vib = getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
+            val vibrator = getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator ?: return
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                vib.vibrate(VibrationEffect.createOneShot(15, VibrationEffect.DEFAULT_AMPLITUDE))
+                vibrator.vibrate(VibrationEffect.createOneShot(10, VibrationEffect.DEFAULT_AMPLITUDE))
             } else {
-                vib.vibrate(15)
+                @Suppress("DEPRECATION")
+                vibrator.vibrate(10)
             }
         } catch (e: Exception) {
             // Ignore vibration errors
         }
     }
 
-    private fun dp(v: Int): Int {
+    private fun dp(value: Int): Int {
         return if (::displayMetrics.isInitialized) {
-            (v * displayMetrics.density).toInt()
+            (value * displayMetrics.density).toInt()
         } else {
-            v
+            value
         }
     }
 
     override fun onDestroy() {
         super.onDestroy()
-        speechRecognizer?.destroy()
-        scope.cancel()
-        mediaRecorder?.release()
+        try {
+            speechRecognizer?.destroy()
+            scope.cancel()
+            mediaRecorder?.release()
+            groqVisualizerJob?.cancel()
+        } catch (e: Exception) {
+            android.util.Log.e("PixelProKeyboard", "onDestroy error", e)
+        }
     }
 }

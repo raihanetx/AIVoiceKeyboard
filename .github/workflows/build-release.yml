@@ -43,25 +43,29 @@ jobs:
     - name: Create Release
       uses: softprops/action-gh-release@v1
       with:
-        tag_name: v1.0.6
-        name: PixelPro Keyboard v1.0.6
+        tag_name: v1.0.7
+        name: PixelPro Keyboard v1.0.7
         body: |
-          ## PixelPro Keyboard v1.0.6
+          ## PixelPro Keyboard v1.0.7 - Production Ready
 
-          ### What's New
-          - **Fixed all keyboard functionality** - All keys now work properly
-          - Toolbar with 6 buttons (emoji, clipboard, credentials, language, settings, voice)
-          - Suggestion bar with 3 word predictions
-          - Voice bar with language chip and visualizer
-          - QWERTY keyboard layout
-          - Caps lock functionality
-          - Language swap (English/Bangla)
-          - Vibration feedback on key press
+          ### 🎯 Fully Functional
+          - **All keyboard keys work** - Letters, numbers, symbols, enter, delete, space
+          - **Caps lock** - Toggle uppercase with ⇧ key
+          - **Language swap** - English ↔ বাংলা (Bangla)
+          - **Word suggestions** - Shows predictions while typing
+          - **Haptic feedback** - Vibration on every key press
 
-          ### Features
-          - Android SpeechRecognizer (Offline STT)
-          - Groq Whisper API (Online STT)
-          - Material Design Light Theme
+          ### 🎤 Voice Typing (Both Engines Working!)
+          - **Android SpeechRecognizer** - Offline/Online, works without internet if language pack installed
+          - **Groq Whisper API** - Online, high accuracy transcription
+          - **Animated visualizer** - Real-time audio feedback
+          - **Easy engine switching** - Tap language chip to swap engines
+
+          ### 🎨 Material Design UI
+          - Light theme with Google Keyboard colors
+          - Toolbar with 6 action buttons
+          - Rounded key design
+          - Smooth animations
 
           ### Installation
           1. Download the APK
