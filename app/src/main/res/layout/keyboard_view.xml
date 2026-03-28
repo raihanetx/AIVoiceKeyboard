@@ -21,7 +21,7 @@
             android:layout_width="36dp"
             android:layout_height="36dp"
             android:background="?attr/selectableItemBackgroundBorderless"
-            android:src="@android:drawable/ic_menu_emoticons"
+            android:src="@drawable/ic_emoji"
             android:contentDescription="Emoji"
             android:tint="@color/toolbar_icon" />
 
@@ -30,7 +30,7 @@
             android:layout_width="36dp"
             android:layout_height="36dp"
             android:background="?attr/selectableItemBackgroundBorderless"
-            android:src="@android:drawable/ic_menu_agenda"
+            android:src="@drawable/ic_clipboard"
             android:contentDescription="Clipboard"
             android:tint="@color/toolbar_icon" />
 
@@ -39,7 +39,7 @@
             android:layout_width="36dp"
             android:layout_height="36dp"
             android:background="?attr/selectableItemBackgroundBorderless"
-            android:src="@android:drawable/ic_lock_lock"
+            android:src="@drawable/ic_lock"
             android:contentDescription="Credentials"
             android:tint="@color/toolbar_icon" />
 
@@ -53,7 +53,7 @@
             android:layout_width="36dp"
             android:layout_height="36dp"
             android:background="?attr/selectableItemBackgroundBorderless"
-            android:src="@android:drawable/ic_menu_sort_by_size"
+            android:src="@drawable/ic_language"
             android:contentDescription="Language"
             android:tint="@color/toolbar_icon" />
 
@@ -62,7 +62,7 @@
             android:layout_width="36dp"
             android:layout_height="36dp"
             android:background="?attr/selectableItemBackgroundBorderless"
-            android:src="@android:drawable/ic_menu_manage"
+            android:src="@drawable/ic_settings"
             android:contentDescription="Settings"
             android:tint="@color/toolbar_icon" />
 
@@ -71,7 +71,7 @@
             android:layout_width="36dp"
             android:layout_height="36dp"
             android:background="?attr/selectableItemBackgroundBorderless"
-            android:src="@android:drawable/ic_btn_speak_now"
+            android:src="@drawable/ic_mic"
             android:contentDescription="Voice"
             android:tint="@color/toolbar_icon" />
     </LinearLayout>
@@ -221,7 +221,7 @@
             android:layout_width="48dp"
             android:layout_height="48dp"
             android:background="@drawable/stop_button_bg"
-            android:src="@android:drawable/ic_menu_close_clear_cancel"
+            android:src="@drawable/ic_stop"
             android:contentDescription="Stop"
             android:tint="@color/key_action_text" />
     </LinearLayout>
