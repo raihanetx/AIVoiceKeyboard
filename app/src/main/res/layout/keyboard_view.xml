@@ -3,45 +3,34 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
-    android:background="@color/keyboard_bg">
+    android:background="#E8EAED">
 
     <!-- Toolbar -->
     <LinearLayout
         android:id="@+id/toolbar"
         android:layout_width="match_parent"
-        android:layout_height="40dp"
+        android:layout_height="44dp"
         android:orientation="horizontal"
         android:gravity="center_vertical"
-        android:background="@color/toolbar_bg"
-        android:paddingStart="8dp"
-        android:paddingEnd="8dp">
+        android:background="#FFFFFF">
 
         <ImageButton
             android:id="@+id/btnEmoji"
-            android:layout_width="36dp"
-            android:layout_height="36dp"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:src="@drawable/ic_emoji"
             android:contentDescription="Emoji"
-            android:tint="@color/toolbar_icon" />
+            android:tint="#5F6368" />
 
         <ImageButton
             android:id="@+id/btnClipboard"
-            android:layout_width="36dp"
-            android:layout_height="36dp"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:src="@drawable/ic_clipboard"
             android:contentDescription="Clipboard"
-            android:tint="@color/toolbar_icon" />
-
-        <ImageButton
-            android:id="@+id/btnCredentials"
-            android:layout_width="36dp"
-            android:layout_height="36dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:src="@drawable/ic_lock"
-            android:contentDescription="Credentials"
-            android:tint="@color/toolbar_icon" />
+            android:tint="#5F6368" />
 
         <View
             android:layout_width="0dp"
@@ -50,186 +39,148 @@
 
         <ImageButton
             android:id="@+id/btnLanguage"
-            android:layout_width="36dp"
-            android:layout_height="36dp"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:src="@drawable/ic_language"
             android:contentDescription="Language"
-            android:tint="@color/toolbar_icon" />
-
-        <ImageButton
-            android:id="@+id/btnSettings"
-            android:layout_width="36dp"
-            android:layout_height="36dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:src="@drawable/ic_settings"
-            android:contentDescription="Settings"
-            android:tint="@color/toolbar_icon" />
+            android:tint="#5F6368" />
 
         <ImageButton
             android:id="@+id/btnVoice"
-            android:layout_width="36dp"
-            android:layout_height="36dp"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:src="@drawable/ic_mic"
             android:contentDescription="Voice"
-            android:tint="@color/toolbar_icon" />
-    </LinearLayout>
-
-    <!-- Suggestion Bar -->
-    <LinearLayout
-        android:id="@+id/suggestionBar"
-        android:layout_width="match_parent"
-        android:layout_height="40dp"
-        android:orientation="horizontal"
-        android:background="@color/suggestion_bg"
-        android:visibility="gone">
-
-        <TextView
-            android:id="@+id/suggestion1"
-            android:layout_width="0dp"
-            android:layout_height="match_parent"
-            android:layout_weight="1"
-            android:gravity="center"
-            android:text="suggestion"
-            android:textColor="@color/suggestion_text"
-            android:textSize="14sp"
-            android:background="?attr/selectableItemBackground" />
-
-        <View
-            android:layout_width="1dp"
-            android:layout_height="match_parent"
-            android:background="@color/suggestion_divider" />
-
-        <TextView
-            android:id="@+id/suggestion2"
-            android:layout_width="0dp"
-            android:layout_height="match_parent"
-            android:layout_weight="1"
-            android:gravity="center"
-            android:text="suggestion"
-            android:textColor="@color/suggestion_text"
-            android:textSize="14sp"
-            android:background="?attr/selectableItemBackground" />
-
-        <View
-            android:layout_width="1dp"
-            android:layout_height="match_parent"
-            android:background="@color/suggestion_divider" />
-
-        <TextView
-            android:id="@+id/suggestion3"
-            android:layout_width="0dp"
-            android:layout_height="match_parent"
-            android:layout_weight="1"
-            android:gravity="center"
-            android:text="suggestion"
-            android:textColor="@color/suggestion_text"
-            android:textSize="14sp"
-            android:background="?attr/selectableItemBackground" />
+            android:tint="#1A73E8" />
     </LinearLayout>
 
     <!-- Voice Bar -->
     <LinearLayout
         android:id="@+id/voiceBar"
         android:layout_width="match_parent"
-        android:layout_height="60dp"
+        android:layout_height="56dp"
         android:orientation="horizontal"
         android:gravity="center_vertical"
-        android:background="@color/voice_bar_bg"
-        android:paddingStart="12dp"
-        android:paddingEnd="12dp"
+        android:background="#FFFFFF"
+        android:padding="8dp"
         android:visibility="gone">
 
-        <!-- Engine Selector -->
-        <LinearLayout
+        <TextView
+            android:id="@+id/btnEngineAndroid"
             android:layout_width="wrap_content"
-            android:layout_height="36dp"
-            android:orientation="horizontal"
-            android:background="@drawable/engine_selector_bg">
+            android:layout_height="32dp"
+            android:paddingLeft="14dp"
+            android:paddingRight="14dp"
+            android:gravity="center"
+            android:text="Android"
+            android:textSize="12sp"
+            android:textColor="#FFFFFF"
+            android:background="@drawable/engine_active_bg" />
 
-            <TextView
-                android:id="@+id/btnEngineAndroid"
-                android:layout_width="wrap_content"
-                android:layout_height="match_parent"
-                android:paddingStart="12dp"
-                android:paddingEnd="12dp"
-                android:gravity="center"
-                android:text="Android"
-                android:textSize="12sp"
-                android:textColor="@color/engine_active_text"
-                android:background="@drawable/engine_active_bg" />
+        <TextView
+            android:id="@+id/btnEngineGroq"
+            android:layout_width="wrap_content"
+            android:layout_height="32dp"
+            android:paddingLeft="14dp"
+            android:paddingRight="14dp"
+            android:gravity="center"
+            android:text="Groq"
+            android:textSize="12sp"
+            android:textColor="#5F6368" />
 
-            <TextView
-                android:id="@+id/btnEngineGroq"
-                android:layout_width="wrap_content"
-                android:layout_height="match_parent"
-                android:paddingStart="12dp"
-                android:paddingEnd="12dp"
-                android:gravity="center"
-                android:text="Groq"
-                android:textSize="12sp"
-                android:textColor="@color/engine_selector_text" />
-        </LinearLayout>
-
-        <!-- Visualizer -->
-        <LinearLayout
-            android:id="@+id/visualizer"
+        <TextView
+            android:id="@+id/voiceStatus"
             android:layout_width="0dp"
             android:layout_height="match_parent"
             android:layout_weight="1"
-            android:layout_marginStart="16dp"
-            android:layout_marginEnd="16dp"
-            android:orientation="horizontal"
-            android:gravity="center">
+            android:gravity="center"
+            android:text="🎤 Listening..."
+            android:textSize="14sp"
+            android:textColor="#1A73E8" />
 
-            <View
-                android:id="@+id/bar1"
-                android:layout_width="4dp"
-                android:layout_height="20dp"
-                android:layout_margin="2dp"
-                android:background="@color/visualizer_bar" />
-            <View
-                android:id="@+id/bar2"
-                android:layout_width="4dp"
-                android:layout_height="30dp"
-                android:layout_margin="2dp"
-                android:background="@color/visualizer_bar" />
-            <View
-                android:id="@+id/bar3"
-                android:layout_width="4dp"
-                android:layout_height="40dp"
-                android:layout_margin="2dp"
-                android:background="@color/visualizer_bar" />
-            <View
-                android:id="@+id/bar4"
-                android:layout_width="4dp"
-                android:layout_height="25dp"
-                android:layout_margin="2dp"
-                android:background="@color/visualizer_bar" />
-            <View
-                android:id="@+id/bar5"
-                android:layout_width="4dp"
-                android:layout_height="35dp"
-                android:layout_margin="2dp"
-                android:background="@color/visualizer_bar" />
-        </LinearLayout>
-
-        <!-- Stop Button -->
         <ImageButton
             android:id="@+id/btnStopVoice"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
             android:background="@drawable/stop_button_bg"
             android:src="@drawable/ic_stop"
             android:contentDescription="Stop"
-            android:tint="@color/key_action_text" />
+            android:tint="#FFFFFF" />
     </LinearLayout>
 
-    <!-- Keyboard Container -->
-    <FrameLayout
-        android:id="@+id/keyboardContainer"
+    <!-- Keyboard Keys -->
+    <LinearLayout
+        android:id="@+id/keyboardKeys"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content" />
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="3dp">
+
+        <!-- Row 1 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="42dp"
+            android:orientation="horizontal">
+            <Button android:id="@+id/key_q" style="@style/KeyboardKey" android:text="q" />
+            <Button android:id="@+id/key_w" style="@style/KeyboardKey" android:text="w" />
+            <Button android:id="@+id/key_e" style="@style/KeyboardKey" android:text="e" />
+            <Button android:id="@+id/key_r" style="@style/KeyboardKey" android:text="r" />
+            <Button android:id="@+id/key_t" style="@style/KeyboardKey" android:text="t" />
+            <Button android:id="@+id/key_y" style="@style/KeyboardKey" android:text="y" />
+            <Button android:id="@+id/key_u" style="@style/KeyboardKey" android:text="u" />
+            <Button android:id="@+id/key_i" style="@style/KeyboardKey" android:text="i" />
+            <Button android:id="@+id/key_o" style="@style/KeyboardKey" android:text="o" />
+            <Button android:id="@+id/key_p" style="@style/KeyboardKey" android:text="p" />
+        </LinearLayout>
+
+        <!-- Row 2 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="42dp"
+            android:orientation="horizontal"
+            android:paddingLeft="14dp"
+            android:paddingRight="14dp">
+            <Button android:id="@+id/key_a" style="@style/KeyboardKey" android:text="a" />
+            <Button android:id="@+id/key_s" style="@style/KeyboardKey" android:text="s" />
+            <Button android:id="@+id/key_d" style="@style/KeyboardKey" android:text="d" />
+            <Button android:id="@+id/key_f" style="@style/KeyboardKey" android:text="f" />
+            <Button android:id="@+id/key_g" style="@style/KeyboardKey" android:text="g" />
+            <Button android:id="@+id/key_h" style="@style/KeyboardKey" android:text="h" />
+            <Button android:id="@+id/key_j" style="@style/KeyboardKey" android:text="j" />
+            <Button android:id="@+id/key_k" style="@style/KeyboardKey" android:text="k" />
+            <Button android:id="@+id/key_l" style="@style/KeyboardKey" android:text="l" />
+        </LinearLayout>
+
+        <!-- Row 3 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="42dp"
+            android:orientation="horizontal">
+            <Button android:id="@+id/key_shift" style="@style/KeyboardKeySpecial" android:text="⇧" android:layout_weight="1.4" />
+            <Button android:id="@+id/key_z" style="@style/KeyboardKey" android:text="z" />
+            <Button android:id="@+id/key_x" style="@style/KeyboardKey" android:text="x" />
+            <Button android:id="@+id/key_c" style="@style/KeyboardKey" android:text="c" />
+            <Button android:id="@+id/key_v" style="@style/KeyboardKey" android:text="v" />
+            <Button android:id="@+id/key_b" style="@style/KeyboardKey" android:text="b" />
+            <Button android:id="@+id/key_n" style="@style/KeyboardKey" android:text="n" />
+            <Button android:id="@+id/key_m" style="@style/KeyboardKey" android:text="m" />
+            <Button android:id="@+id/key_backspace" style="@style/KeyboardKeySpecial" android:text="⌫" android:layout_weight="1.4" />
+        </LinearLayout>
+
+        <!-- Row 4 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="42dp"
+            android:orientation="horizontal">
+            <Button android:id="@+id/key_numbers" style="@style/KeyboardKeySpecial" android:text="?123" android:layout_weight="1.4" />
+            <Button android:id="@+id/key_comma" style="@style/KeyboardKey" android:text="," />
+            <Button android:id="@+id/key_space" style="@style/KeyboardKey" android:text="Space" android:layout_weight="2.8" />
+            <Button android:id="@+id/key_dot" style="@style/KeyboardKey" android:text="." />
+            <Button android:id="@+id/key_enter" style="@style/KeyboardKeyAction" android:text="↵" android:layout_weight="1.4" />
+        </LinearLayout>
+
+    </LinearLayout>
 
 </LinearLayout>
