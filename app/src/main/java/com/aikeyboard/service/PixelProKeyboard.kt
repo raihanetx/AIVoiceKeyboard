@@ -1,8 +1,10 @@
 package com.aikeyboard.service
 
 import android.Manifest
+import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
+import android.content.SharedPreferences
 import android.content.pm.PackageManager
 import android.graphics.Color
 import android.graphics.Typeface
@@ -19,6 +21,7 @@ import android.os.Vibrator
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
+import android.text.InputType
 import android.util.DisplayMetrics
 import android.view.Gravity
 import android.view.View
@@ -40,10 +43,13 @@ import java.util.concurrent.atomic.AtomicBoolean
  * 
  * Features:
  * - English QWERTY and Bangla keyboard layouts
+ * - Emoji keyboard with categories
+ * - Clipboard manager
+ * - Credential safe
  * - Two voice recognition engines: Android SpeechRecognizer (offline/online) and Groq Whisper (online)
  * - Smart suggestions and haptic feedback
  * 
- * @version 1.0.7
+ * @version 1.0.8
  */
 class PixelProKeyboard : android.inputmethodservice.InputMethodService() {
 
@@ -51,6 +57,9 @@ class PixelProKeyboard : android.inputmethodservice.InputMethodService() {
         private const val TAG = "PixelProKeyboard"
         private const val MIN_RECORDING_DURATION_MS = 500L
         private const val VOICE_RESTART_DELAY_MS = 1000L
+        private const val PREFS_NAME = "PixelProKeyboardPrefs"
+        private const val CREDENTIALS_KEY = "saved_credentials"
+        private const val CLIPBOARD_HISTORY_KEY = "clipboard_history"
     }
 
     // --- STATE (Thread-safe) ---
@@ -58,6 +67,9 @@ class PixelProKeyboard : android.inputmethodservice.InputMethodService() {
     private var currentLang = "en"
     private var voiceEngine = "android"
     private val isVoiceActive = AtomicBoolean(false)
+    
+    // Keyboard mode: "text", "emoji", "clipboard", "credentials"
+    private var keyboardMode = "text"
 
     // --- THEME COLORS (Light Mode) ---
     private val colorBg = Color.parseColor("#E8EAED")
@@ -68,6 +80,7 @@ class PixelProKeyboard : android.inputmethodservice.InputMethodService() {
     private val colorIcon = Color.parseColor("#5f6368")
     private val colorDivider = Color.parseColor("#1F000000")
     private val colorError = Color.parseColor("#EA4335")
+    private val colorSuccess = Color.parseColor("#34A853")
 
     // --- VIEWS ---
     private var container: LinearLayout? = null
@@ -75,12 +88,20 @@ class PixelProKeyboard : android.inputmethodservice.InputMethodService() {
     private var suggestionBar: LinearLayout? = null
     private var voiceBar: LinearLayout? = null
     private var keyGridContainer: LinearLayout? = null
+    private var extraPanel: LinearLayout? = null
     private var tvSugg1: TextView? = null
     private var tvSugg2: TextView? = null
     private var tvSugg3: TextView? = null
     private var tvVoiceLang: TextView? = null
     private var tvVoiceStatus: TextView? = null
     private var visualizerBars: MutableList<View>? = null
+    
+    // Extra panel views
+    private var emojiCategoryScroll: HorizontalScrollView? = null
+    private var emojiGrid: GridView? = null
+    private var clipboardList: ListView? = null
+    private var credentialsList: ListView? = null
+    private var credentialInputLayout: LinearLayout? = null
 
     // --- VOICE ---
     private var speechRecognizer: SpeechRecognizer? = null
@@ -100,6 +121,29 @@ class PixelProKeyboard : android.inputmethodservice.InputMethodService() {
 
     // Display metrics for dp conversion
     private lateinit var displayMetrics: DisplayMetrics
+    
+    // SharedPreferences for credentials and clipboard
+    private lateinit var prefs: SharedPreferences
+    private lateinit var clipboardManager: ClipboardManager
+
+    // Track recording start time
+    private var recordingStartTime = 0L
+
+    // Emoji categories
+    private val emojiCategories = mapOf(
+        "😊" to listOf("😊","😂","🥰","😍","🤩","😎","🥳","😇","🙃","😋","🤗","😏","😌","😴","🤔","😤","😢","😭","😱","😡"),
+        "👍" to listOf("👍","👎","👏","🙌","🤝","✌️","🤞","👌","🤟","👋","🤚","✋","🖖","👌","🤌","🤏","✊","👊","🤛","🤜"),
+        "❤️" to listOf("❤️","🧡","💛","💚","💙","💜","🖤","🤍","🤎","💔","❣️","💕","💞","💓","💗","💖","💘","💝","💟","♥️"),
+        "🎉" to listOf("🎉","🎊","🎈","🎁","🎀","🎄","🎅","🤶","🧑‍🎄","🎆","🎇","✨","🎐","🎑","🧧"," Valentine","🎂","🎃","🪔","🎋"),
+        "🐶" to listOf("🐶","🐱","🐭","🐹","🐰","🦊","🐻","🐼","🐨","🐯","🦁","🐮","🐷","🐸","🐵","🐔","🐧","🐦","🐤","🦆"),
+        "🍎" to listOf("🍎","🍐","🍊","🍋","🍌","🍉","🍇","🍓","🫐","🍑","🍒","🥝","🍅","🥥","🥑","🍆","🥔","🥕","🌽","🌶️"),
+        "🏠" to listOf("🏠","🏡","🏘️","🏗️","🏢","🏬","🏣","🏤","🏥","🏦","🏨","🏪","🏫","🏩","💒","🏛️","⛪","🕌","🕍","🛕"),
+        "🚗" to listOf("🚗","🚕","🚙","🚌","🚎","🏎️","🚓","🚑","🚒","🚐","🚚","🚛","🚜","🦯","🦽","🦼","🛴","🚲","🛵","🏍️"),
+        "⚡" to listOf("⚡","🔥","💧","🌊","💨","🌪️","🌈","☀️","🌙","⭐","🌟","✨","💫","🌠","☁️","⛈️","🌤️","🌧️"," ❄️","☃️"),
+        "💻" to listOf("💻","📱","📲","☎️","📞","📟","📠","📺","📻","🎙️","🎚️","🎛️","🧭","⏱️","⏲️","⏰","🕰️","💾","💿","📀")
+    )
+    
+    private var currentEmojiCategory = "😊"
 
     // Bangla layout
     private val banglaRows = listOf(
@@ -111,27 +155,21 @@ class PixelProKeyboard : android.inputmethodservice.InputMethodService() {
         listOf("123","ষ","স","হ","SPACE","।","↵")
     )
 
-    // Track recording start time
-    private var recordingStartTime = 0L
-
     override fun onCreate() {
         super.onCreate()
         try {
             displayMetrics = resources.displayMetrics
+            prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            clipboardManager = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
             initializeSpeechRecognizer()
         } catch (e: Exception) {
             android.util.Log.e(TAG, "onCreate error", e)
         }
     }
 
-    /**
-     * Initialize Android SpeechRecognizer with availability check
-     */
     private fun initializeSpeechRecognizer() {
         try {
-            // Check if SpeechRecognizer is available on this device
             isSpeechRecognizerAvailable = SpeechRecognizer.isRecognitionAvailable(this)
-            
             if (isSpeechRecognizerAvailable) {
                 speechRecognizer = SpeechRecognizer.createSpeechRecognizer(this)
                 android.util.Log.d(TAG, "SpeechRecognizer initialized successfully")
@@ -177,9 +215,9 @@ class PixelProKeyboard : android.inputmethodservice.InputMethodService() {
         }
 
         // Left icons: Emoji, Clipboard, Credentials
-        toolbar?.addView(makeToolbarBtn(R.drawable.ic_smile) { show("Emoji coming soon") })
-        toolbar?.addView(makeToolbarBtn(R.drawable.ic_clipboard) { show("Clipboard coming soon") })
-        toolbar?.addView(makeToolbarBtn(R.drawable.ic_key) { show("Credentials coming soon") })
+        toolbar?.addView(makeToolbarBtn(R.drawable.ic_smile) { toggleEmojiKeyboard() })
+        toolbar?.addView(makeToolbarBtn(R.drawable.ic_clipboard) { toggleClipboardPanel() })
+        toolbar?.addView(makeToolbarBtn(R.drawable.ic_key) { toggleCredentialsPanel() })
 
         // Spacer
         toolbar?.addView(View(this).apply { 
@@ -188,7 +226,7 @@ class PixelProKeyboard : android.inputmethodservice.InputMethodService() {
 
         // Right icons: Language, Settings, Mic
         toolbar?.addView(makeToolbarBtn(R.drawable.ic_globe) { swapLanguage() })
-        toolbar?.addView(makeToolbarBtn(R.drawable.ic_settings) { show("Settings coming soon") })
+        toolbar?.addView(makeToolbarBtn(R.drawable.ic_settings) { showSettings() })
         toolbar?.addView(makeToolbarBtn(R.drawable.ic_mic) { toggleVoiceBar() })
 
         topArea.addView(toolbar)
@@ -224,7 +262,6 @@ class PixelProKeyboard : android.inputmethodservice.InputMethodService() {
             visibility = View.GONE
         }
 
-        // Language chip
         tvVoiceLang = TextView(this).apply {
             text = "English (Android)"
             setTextColor(colorKeyText)
@@ -238,7 +275,6 @@ class PixelProKeyboard : android.inputmethodservice.InputMethodService() {
         }
         voiceBar?.addView(tvVoiceLang)
 
-        // Center container for status + visualizer
         val centerContainer = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f)
@@ -246,7 +282,6 @@ class PixelProKeyboard : android.inputmethodservice.InputMethodService() {
             setPadding(dp(8), 0, dp(8), 0)
         }
 
-        // Status text
         tvVoiceStatus = TextView(this).apply {
             text = "Tap mic to start"
             textSize = 12f
@@ -255,7 +290,6 @@ class PixelProKeyboard : android.inputmethodservice.InputMethodService() {
         }
         centerContainer.addView(tvVoiceStatus)
 
-        // Visualizer
         val visualizer = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, dp(20))
@@ -278,7 +312,6 @@ class PixelProKeyboard : android.inputmethodservice.InputMethodService() {
         centerContainer.addView(visualizer)
         voiceBar?.addView(centerContainer)
 
-        // Stop button
         val stopBtn = ImageButton(this).apply {
             layoutParams = LinearLayout.LayoutParams(dp(40), dp(40))
             setImageResource(R.drawable.ic_stop)
@@ -295,13 +328,492 @@ class PixelProKeyboard : android.inputmethodservice.InputMethodService() {
         container?.addView(topArea)
     }
 
+    // --- EMOJI KEYBOARD ---
+    
+    private fun toggleEmojiKeyboard() {
+        vibrate()
+        if (keyboardMode == "emoji") {
+            showTextKeyboard()
+        } else {
+            showEmojiKeyboard()
+        }
+    }
+    
+    private fun showEmojiKeyboard() {
+        keyboardMode = "emoji"
+        hideAllPanels()
+        keyGridContainer?.visibility = View.GONE
+        
+        extraPanel = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(220))
+            setBackgroundColor(Color.WHITE)
+        }
+        
+        // Category tabs
+        emojiCategoryScroll = HorizontalScrollView(this).apply {
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(44))
+            setBackgroundColor(colorBg)
+            
+            val categoryRow = LinearLayout(context).apply {
+                orientation = LinearLayout.HORIZONTAL
+                setPadding(dp(8), dp(4), dp(8), dp(4))
+            }
+            
+            emojiCategories.keys.forEach { category ->
+                val catBtn = TextView(context).apply {
+                    text = category
+                    textSize = 20f
+                    setPadding(dp(12), dp(8), dp(12), dp(8))
+                    gravity = Gravity.CENTER
+                    background = if (category == currentEmojiCategory) 
+                        roundedDrawable(colorAccent, 20) 
+                    else 
+                        roundedDrawable(colorSpecialBg, 20)
+                    setTextColor(if (category == currentEmojiCategory) Color.WHITE else colorKeyText)
+                    isClickable = true
+                    setOnClickListener { 
+                        vibrate()
+                        currentEmojiCategory = category
+                        updateEmojiGrid()
+                    }
+                }
+                categoryRow.addView(catBtn)
+            }
+            addView(categoryRow)
+        }
+        extraPanel?.addView(emojiCategoryScroll)
+        
+        // Emoji grid
+        emojiGrid = GridView(this).apply {
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.MATCH_PARENT)
+            numColumns = 5
+            verticalSpacing = dp(8)
+            horizontalSpacing = dp(8)
+            setPadding(dp(8), dp(8), dp(8), dp(8))
+            stretchMode = GridView.STRETCH_COLUMN_WIDTH
+            adapter = EmojiAdapter(emojiCategories[currentEmojiCategory] ?: emptyList())
+            setOnItemClickListener { _, _, position, _ ->
+                val emoji = emojiCategories[currentEmojiCategory]?.getOrNull(position)
+                if (emoji != null) {
+                    sendText(emoji)
+                }
+            }
+        }
+        extraPanel?.addView(emojiGrid)
+        
+        container?.addView(extraPanel)
+    }
+    
+    private fun updateEmojiGrid() {
+        // Update category buttons
+        val catRow = emojiCategoryScroll?.getChildAt(0) as? LinearLayout ?: return
+        for (i in 0 until catRow.childCount) {
+            val btn = catRow.getChildAt(i) as? TextView ?: continue
+            val emoji = btn.text.toString()
+            btn.background = if (emoji == currentEmojiCategory) 
+                roundedDrawable(colorAccent, 20) 
+            else 
+                roundedDrawable(colorSpecialBg, 20)
+            btn.setTextColor(if (emoji == currentEmojiCategory) Color.WHITE else colorKeyText)
+        }
+        
+        // Update grid
+        (emojiGrid?.adapter as? EmojiAdapter)?.updateEmojis(emojiCategories[currentEmojiCategory] ?: emptyList())
+    }
+    
+    inner class EmojiAdapter(private var emojis: List<String>) : android.widget.BaseAdapter() {
+        override fun getCount(): Int = emojis.size
+        override fun getItem(position: Int): Any = emojis[position]
+        override fun getItemId(position: Int): Long = position.toLong()
+        
+        override fun getView(position: Int, convertView: View?, parent: android.view.ViewGroup?): View {
+            val emoji = emojis[position]
+            return (convertView as? TextView ?: TextView(this@PixelProKeyboard).apply {
+                textSize = 28f
+                gravity = Gravity.CENTER
+                setPadding(dp(8), dp(8), dp(8), dp(8))
+            }).apply {
+                text = emoji
+            }
+        }
+        
+        fun updateEmojis(newEmojis: List<String>) {
+            emojis = newEmojis
+            notifyDataSetChanged()
+        }
+    }
+
+    // --- CLIPBOARD MANAGER ---
+    
+    private fun toggleClipboardPanel() {
+        vibrate()
+        if (keyboardMode == "clipboard") {
+            showTextKeyboard()
+        } else {
+            showClipboardPanel()
+        }
+    }
+    
+    private fun showClipboardPanel() {
+        keyboardMode = "clipboard"
+        hideAllPanels()
+        keyGridContainer?.visibility = View.GONE
+        
+        extraPanel = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(220))
+            setBackgroundColor(Color.WHITE)
+        }
+        
+        // Header with clear button
+        val header = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(44))
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(12), 0, dp(12), 0)
+        }
+        
+        header.addView(TextView(this).apply {
+            text = "📋 Clipboard History"
+            textSize = 16f
+            typeface = Typeface.DEFAULT_BOLD
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+        })
+        
+        header.addView(Button(this).apply {
+            text = "Clear"
+            textSize = 12f
+            setTextColor(colorError)
+            background = null
+            setOnClickListener { 
+                vibrate()
+                clearClipboardHistory()
+                showClipboardPanel()
+            }
+        })
+        
+        extraPanel?.addView(header)
+        
+        // Get clipboard history
+        val history = getClipboardHistory()
+        val currentClip = clipboardManager.primaryClip?.getItemAt(0)?.text?.toString()
+        
+        // Add current clipboard if not in history
+        val allItems = mutableListOf<String>()
+        if (!currentClip.isNullOrBlank() && !history.contains(currentClip)) {
+            allItems.add(0, currentClip)
+        }
+        allItems.addAll(history)
+        
+        if (allItems.isEmpty()) {
+            extraPanel?.addView(TextView(this).apply {
+                text = "No clipboard items yet\nCopy some text to see it here"
+                textSize = 14f
+                setTextColor(colorIcon)
+                gravity = Gravity.CENTER
+                setPadding(dp(16), dp(32), dp(16), dp(32))
+            })
+        } else {
+            clipboardList = ListView(this).apply {
+                layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.MATCH_PARENT)
+                adapter = android.widget.ArrayAdapter(this@PixelProKeyboard, android.R.layout.simple_list_item_1, allItems.map { 
+                    if (it.length > 50) it.take(50) + "..." else it 
+                })
+                setOnItemClickListener { _, _, position, _ ->
+                    val item = allItems[position]
+                    sendText(item)
+                    saveToClipboardHistory(item)
+                }
+                setOnItemLongClickListener { _, _, position, _ ->
+                    val item = allItems[position]
+                    removeFromClipboardHistory(item)
+                    showClipboardPanel()
+                    true
+                }
+            }
+            extraPanel?.addView(clipboardList)
+        }
+        
+        container?.addView(extraPanel)
+    }
+    
+    private fun getClipboardHistory(): List<String> {
+        val json = prefs.getString(CLIPBOARD_HISTORY_KEY, "[]") ?: "[]"
+        return try {
+            org.json.JSONArray(json).let { arr ->
+                (0 until arr.length()).map { arr.getString(it) }
+            }
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+    
+    private fun saveToClipboardHistory(text: String) {
+        val history = getClipboardHistory().toMutableList()
+        history.remove(text) // Remove if exists
+        history.add(0, text) // Add to front
+        if (history.size > 20) history.removeLast() // Keep only 20 items
+        
+        val json = org.json.JSONArray(history).toString()
+        prefs.edit().putString(CLIPBOARD_HISTORY_KEY, json).apply()
+    }
+    
+    private fun removeFromClipboardHistory(text: String) {
+        val history = getClipboardHistory().toMutableList()
+        history.remove(text)
+        val json = org.json.JSONArray(history).toString()
+        prefs.edit().putString(CLIPBOARD_HISTORY_KEY, json).apply()
+    }
+    
+    private fun clearClipboardHistory() {
+        prefs.edit().remove(CLIPBOARD_HISTORY_KEY).apply()
+    }
+
+    // --- CREDENTIAL SAFE ---
+    
+    private fun toggleCredentialsPanel() {
+        vibrate()
+        if (keyboardMode == "credentials") {
+            showTextKeyboard()
+        } else {
+            showCredentialsPanel()
+        }
+    }
+    
+    private fun showCredentialsPanel() {
+        keyboardMode = "credentials"
+        hideAllPanels()
+        keyGridContainer?.visibility = View.GONE
+        
+        extraPanel = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(220))
+            setBackgroundColor(Color.WHITE)
+        }
+        
+        // Header
+        val header = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(44))
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(12), 0, dp(12), 0)
+        }
+        
+        header.addView(TextView(this).apply {
+            text = "🔐 Credential Safe"
+            textSize = 16f
+            typeface = Typeface.DEFAULT_BOLD
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+        })
+        
+        header.addView(Button(this).apply {
+            text = "+ Add"
+            textSize = 12f
+            setTextColor(colorAccent)
+            background = null
+            setOnClickListener { 
+                vibrate()
+                showAddCredentialDialog()
+            }
+        })
+        
+        extraPanel?.addView(header)
+        
+        // Get saved credentials
+        val credentials = getCredentials()
+        
+        if (credentials.isEmpty()) {
+            extraPanel?.addView(TextView(this).apply {
+                text = "No saved credentials\nTap '+ Add' to save your first credential"
+                textSize = 14f
+                setTextColor(colorIcon)
+                gravity = Gravity.CENTER
+                setPadding(dp(16), dp(32), dp(16), dp(32))
+            })
+        } else {
+            credentialsList = ListView(this).apply {
+                layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.MATCH_PARENT)
+                adapter = CredentialAdapter(credentials)
+                setOnItemClickListener { _, _, position, _ ->
+                    val cred = credentials[position]
+                    // Copy password to text field
+                    sendText(cred.second)
+                }
+                setOnItemLongClickListener { _, _, position, _ ->
+                    val cred = credentials[position]
+                    deleteCredential(cred.first)
+                    showCredentialsPanel()
+                    true
+                }
+            }
+            extraPanel?.addView(credentialsList)
+        }
+        
+        container?.addView(extraPanel)
+    }
+    
+    inner class CredentialAdapter(private val credentials: List<Pair<String, String>>) : android.widget.BaseAdapter() {
+        override fun getCount(): Int = credentials.size
+        override fun getItem(position: Int): Pair<String, String> = credentials[position]
+        override fun getItemId(position: Int): Long = position.toLong()
+        
+        override fun getView(position: Int, convertView: View?, parent: android.view.ViewGroup?): View {
+            val (name, _) = credentials[position]
+            return (convertView as? LinearLayout ?: LinearLayout(this@PixelProKeyboard).apply {
+                orientation = LinearLayout.HORIZONTAL
+                setPadding(dp(16), dp(12), dp(16), dp(12))
+                gravity = Gravity.CENTER_VERTICAL
+            }).apply {
+                removeAllViews()
+                addView(TextView(this@PixelProKeyboard).apply {
+                    text = "🔑 $name"
+                    textSize = 16f
+                    layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                })
+                addView(TextView(this@PixelProKeyboard).apply {
+                    text = "Tap to insert • Hold to delete"
+                    textSize = 10f
+                    setTextColor(colorIcon)
+                })
+            }
+        }
+    }
+    
+    private fun showAddCredentialDialog() {
+        // Create a simple inline form
+        extraPanel?.removeAllViews()
+        
+        extraPanel?.addView(TextView(this).apply {
+            text = "Add New Credential"
+            textSize = 16f
+            typeface = Typeface.DEFAULT_BOLD
+            setPadding(dp(16), dp(12), dp(16), dp(8))
+        })
+        
+        val nameInput = EditText(this).apply {
+            hint = "Account Name (e.g., Gmail)"
+            setPadding(dp(16), dp(12), dp(16), dp(12))
+            textSize = 16f
+        }
+        extraPanel?.addView(nameInput)
+        
+        val valueInput = EditText(this).apply {
+            hint = "Password / Value"
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
+            setPadding(dp(16), dp(12), dp(16), dp(12))
+            textSize = 16f
+        }
+        extraPanel?.addView(valueInput)
+        
+        val buttonRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.END
+            setPadding(dp(16), dp(8), dp(16), dp(8))
+        }
+        
+        buttonRow.addView(Button(this).apply {
+            text = "Cancel"
+            background = null
+            setTextColor(colorIcon)
+            setOnClickListener { 
+                vibrate()
+                showCredentialsPanel()
+            }
+        })
+        
+        buttonRow.addView(Button(this).apply {
+            text = "Save"
+            background = null
+            setTextColor(colorAccent)
+            setOnClickListener {
+                vibrate()
+                val name = nameInput.text.toString().trim()
+                val value = valueInput.text.toString()
+                if (name.isNotEmpty() && value.isNotEmpty()) {
+                    saveCredential(name, value)
+                    show("Saved: $name")
+                    showCredentialsPanel()
+                } else {
+                    show("Please fill both fields")
+                }
+            }
+        })
+        
+        extraPanel?.addView(buttonRow)
+    }
+    
+    private fun getCredentials(): List<Pair<String, String>> {
+        val json = prefs.getString(CREDENTIALS_KEY, "[]") ?: "[]"
+        return try {
+            val arr = org.json.JSONArray(json)
+            (0 until arr.length()).map { i ->
+                val obj = arr.getJSONObject(i)
+                obj.getString("name") to obj.getString("value")
+            }
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+    
+    private fun saveCredential(name: String, value: String) {
+        val credentials = getCredentials().toMutableList()
+        credentials.removeIf { it.first == name } // Remove existing with same name
+        credentials.add(0, name to value) // Add to front
+        
+        val arr = org.json.JSONArray()
+        credentials.forEach { (n, v) ->
+            arr.put(org.json.JSONObject().apply {
+                put("name", n)
+                put("value", v)
+            })
+        }
+        prefs.edit().putString(CREDENTIALS_KEY, arr.toString()).apply()
+    }
+    
+    private fun deleteCredential(name: String) {
+        val credentials = getCredentials().toMutableList()
+        credentials.removeIf { it.first == name }
+        
+        val arr = org.json.JSONArray()
+        credentials.forEach { (n, v) ->
+            arr.put(org.json.JSONObject().apply {
+                put("name", n)
+                put("value", v)
+            })
+        }
+        prefs.edit().putString(CREDENTIALS_KEY, arr.toString()).apply()
+        show("Deleted: $name")
+    }
+
+    // --- SHOW TEXT KEYBOARD ---
+    
+    private fun showTextKeyboard() {
+        keyboardMode = "text"
+        hideAllPanels()
+        keyGridContainer?.visibility = View.VISIBLE
+        rebuildKeys()
+    }
+    
+    private fun hideAllPanels() {
+        extraPanel?.let {
+            container?.removeView(it)
+            extraPanel = null
+        }
+    }
+    
+    private fun showSettings() {
+        vibrate()
+        // Show a simple settings toast for now
+        show("Settings: Long-press keys for more options")
+    }
+
     private fun setupKeyboardGrid() {
         keyGridContainer = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(6), 0, dp(6), 0)
         }
 
-        // English QWERTY layout
         addKeyRow(listOf("q","w","e","r","t","y","u","i","o","p"))
         addKeyRow(listOf("a","s","d","f","g","h","j","k","l"))
         addKeyRow(listOf("⇧","z","x","c","v","b","n","m","⌫"), hasSpecial = true)
@@ -374,7 +886,6 @@ class PixelProKeyboard : android.inputmethodservice.InputMethodService() {
                 }
             }
 
-            // Set text size based on key type
             when {
                 key == "SPACE" -> btn.textSize = 14f
                 key.length > 2 -> btn.textSize = 14f
@@ -469,6 +980,12 @@ class PixelProKeyboard : android.inputmethodservice.InputMethodService() {
     private fun sendText(text: String) {
         vibrate()
         currentInputConnection?.commitText(text, 1)
+        
+        // Save to clipboard history if it's a substantial text
+        if (text.length > 2) {
+            saveToClipboardHistory(text)
+        }
+        
         updateSuggestions(text)
     }
 
@@ -572,9 +1089,6 @@ class PixelProKeyboard : android.inputmethodservice.InputMethodService() {
         }
     }
 
-    /**
-     * Check if network is available for Groq API
-     */
     private fun isNetworkAvailable(): Boolean {
         val connectivityManager = getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
             ?: return false
@@ -592,7 +1106,6 @@ class PixelProKeyboard : android.inputmethodservice.InputMethodService() {
     }
 
     private fun startVoice() {
-        // Check permission
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
             show("Please grant microphone permission in Settings")
             tvVoiceStatus?.text = "No permission"
@@ -662,7 +1175,6 @@ class PixelProKeyboard : android.inputmethodservice.InputMethodService() {
                 override fun onRmsChanged(rms: Float) {
                     if (!isVoiceActive.get()) return
                     
-                    // Animate visualizer based on volume
                     val normalizedRms = (rms / 10).coerceIn(0f, 1f)
                     visualizerBars?.forEachIndexed { i, bar ->
                         val height = dp(8 + (normalizedRms * 12 * (i % 2 + 1)).toInt())
@@ -677,7 +1189,6 @@ class PixelProKeyboard : android.inputmethodservice.InputMethodService() {
                 override fun onEndOfSpeech() {
                     if (isVoiceActive.get()) {
                         tvVoiceStatus?.text = "Processing..."
-                        // Restart for continuous listening
                         mainHandler.postDelayed({ 
                             if (isVoiceActive.get()) startAndroidVoice() 
                         }, VOICE_RESTART_DELAY_MS)
@@ -701,7 +1212,6 @@ class PixelProKeyboard : android.inputmethodservice.InputMethodService() {
                     }
                     tvVoiceStatus?.text = errorMsg
                     
-                    // Only restart for non-recoverable errors
                     val shouldRestart = error != SpeechRecognizer.ERROR_NO_MATCH && 
                                         error != SpeechRecognizer.ERROR_SPEECH_TIMEOUT &&
                                         error != SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS
@@ -720,7 +1230,6 @@ class PixelProKeyboard : android.inputmethodservice.InputMethodService() {
                         sendText(it)
                     }
                     
-                    // Continue listening
                     if (isVoiceActive.get()) {
                         mainHandler.postDelayed({ 
                             if (isVoiceActive.get()) startAndroidVoice() 
@@ -752,7 +1261,6 @@ class PixelProKeyboard : android.inputmethodservice.InputMethodService() {
             tvVoiceStatus?.text = "Voice error: ${e.message}"
             show("Voice recognition failed")
             
-            // Try to recover
             if (isVoiceActive.get()) {
                 mainHandler.postDelayed({ 
                     if (isVoiceActive.get()) startAndroidVoice() 
@@ -766,7 +1274,6 @@ class PixelProKeyboard : android.inputmethodservice.InputMethodService() {
         recordingStartTime = System.currentTimeMillis()
 
         try {
-            // Clean up any previous audio file
             audioFile?.delete()
             
             audioFile = File(cacheDir, "voice_${System.currentTimeMillis()}.m4a")
@@ -787,7 +1294,6 @@ class PixelProKeyboard : android.inputmethodservice.InputMethodService() {
                 start()
             }
 
-            // Animate visualizer for Groq
             groqVisualizerJob = scope.launch {
                 var amplitude = 0
                 while (isVoiceActive.get()) {
@@ -809,7 +1315,6 @@ class PixelProKeyboard : android.inputmethodservice.InputMethodService() {
             tvVoiceStatus?.text = "Recording failed"
             show("Failed to start recording: ${e.message}")
             
-            // Clean up on error
             try {
                 mediaRecorder?.release()
             } catch (ignored: Exception) {}
@@ -832,7 +1337,6 @@ class PixelProKeyboard : android.inputmethodservice.InputMethodService() {
             }
             mediaRecorder = null
 
-            // Check minimum recording duration
             val recordingDuration = System.currentTimeMillis() - recordingStartTime
             
             currentAudioFile?.let { file ->
@@ -911,7 +1415,6 @@ class PixelProKeyboard : android.inputmethodservice.InputMethodService() {
                     show("Error: ${e.message}")
                 }
             } finally {
-                // Clean up audio file
                 try {
                     file.delete()
                 } catch (e: Exception) {
@@ -963,26 +1466,16 @@ class PixelProKeyboard : android.inputmethodservice.InputMethodService() {
     override fun onDestroy() {
         super.onDestroy()
         try {
-            // Cancel all coroutines
             scope.cancel()
             groqVisualizerJob?.cancel()
-            
-            // Clean up speech recognizer
             speechRecognizer?.destroy()
             speechRecognizer = null
-            
-            // Clean up media recorder
             mediaRecorder?.release()
             mediaRecorder = null
-            
-            // Clean up audio files
             audioFile?.delete()
             audioFile = null
-            
-            // Clear views
             visualizerBars?.clear()
             visualizerBars = null
-            
             android.util.Log.d(TAG, "Keyboard service destroyed")
         } catch (e: Exception) {
             android.util.Log.e(TAG, "onDestroy error", e)
