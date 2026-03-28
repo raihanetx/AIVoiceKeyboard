@@ -102,15 +102,15 @@
 
         <ImageButton
             android:id="@+id/btnStopVoice"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
             android:background="@drawable/stop_button_bg"
             android:src="@drawable/ic_stop"
             android:contentDescription="Stop"
             android:tint="#FFFFFF" />
     </LinearLayout>
 
-    <!-- Keyboard Keys -->
+    <!-- Keyboard Keys Container -->
     <LinearLayout
         android:id="@+id/keyboardKeys"
         android:layout_width="match_parent"
@@ -118,11 +118,12 @@
         android:orientation="vertical"
         android:padding="3dp">
 
-        <!-- Row 1 -->
+        <!-- Row 1: Q W E R T Y U I O P -->
         <LinearLayout
             android:layout_width="match_parent"
-            android:layout_height="42dp"
-            android:orientation="horizontal">
+            android:layout_height="44dp"
+            android:orientation="horizontal"
+            android:gravity="center">
             <Button android:id="@+id/key_q" style="@style/KeyboardKey" android:text="q" />
             <Button android:id="@+id/key_w" style="@style/KeyboardKey" android:text="w" />
             <Button android:id="@+id/key_e" style="@style/KeyboardKey" android:text="e" />
@@ -135,11 +136,12 @@
             <Button android:id="@+id/key_p" style="@style/KeyboardKey" android:text="p" />
         </LinearLayout>
 
-        <!-- Row 2 -->
+        <!-- Row 2: A S D F G H J K L -->
         <LinearLayout
             android:layout_width="match_parent"
-            android:layout_height="42dp"
+            android:layout_height="44dp"
             android:orientation="horizontal"
+            android:gravity="center"
             android:paddingLeft="14dp"
             android:paddingRight="14dp">
             <Button android:id="@+id/key_a" style="@style/KeyboardKey" android:text="a" />
@@ -153,11 +155,12 @@
             <Button android:id="@+id/key_l" style="@style/KeyboardKey" android:text="l" />
         </LinearLayout>
 
-        <!-- Row 3 -->
+        <!-- Row 3: SHIFT Z X C V B N M BACKSPACE -->
         <LinearLayout
             android:layout_width="match_parent"
-            android:layout_height="42dp"
-            android:orientation="horizontal">
+            android:layout_height="44dp"
+            android:orientation="horizontal"
+            android:gravity="center">
             <Button android:id="@+id/key_shift" style="@style/KeyboardKeySpecial" android:text="⇧" android:layout_weight="1.4" />
             <Button android:id="@+id/key_z" style="@style/KeyboardKey" android:text="z" />
             <Button android:id="@+id/key_x" style="@style/KeyboardKey" android:text="x" />
@@ -169,12 +172,13 @@
             <Button android:id="@+id/key_backspace" style="@style/KeyboardKeySpecial" android:text="⌫" android:layout_weight="1.4" />
         </LinearLayout>
 
-        <!-- Row 4 -->
+        <!-- Row 4: NUMBERS COMMA SPACE DOT ENTER -->
         <LinearLayout
             android:layout_width="match_parent"
-            android:layout_height="42dp"
-            android:orientation="horizontal">
-            <Button android:id="@+id/key_numbers" style="@style/KeyboardKeySpecial" android:text="?123" android:layout_weight="1.4" />
+            android:layout_height="44dp"
+            android:orientation="horizontal"
+            android:gravity="center">
+            <Button android:id="@+id/key_numbers" style="@style/KeyboardKeySpecial" android:text="123" android:layout_weight="1.4" />
             <Button android:id="@+id/key_comma" style="@style/KeyboardKey" android:text="," />
             <Button android:id="@+id/key_space" style="@style/KeyboardKey" android:text="Space" android:layout_weight="2.8" />
             <Button android:id="@+id/key_dot" style="@style/KeyboardKey" android:text="." />
