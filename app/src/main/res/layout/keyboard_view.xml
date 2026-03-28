@@ -1,0 +1,235 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="@color/keyboard_bg">
+
+    <!-- Toolbar -->
+    <LinearLayout
+        android:id="@+id/toolbar"
+        android:layout_width="match_parent"
+        android:layout_height="40dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:background="@color/toolbar_bg"
+        android:paddingStart="8dp"
+        android:paddingEnd="8dp">
+
+        <ImageButton
+            android:id="@+id/btnEmoji"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@android:drawable/ic_menu_emoticons"
+            android:contentDescription="Emoji"
+            android:tint="@color/toolbar_icon" />
+
+        <ImageButton
+            android:id="@+id/btnClipboard"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@android:drawable/ic_menu_agenda"
+            android:contentDescription="Clipboard"
+            android:tint="@color/toolbar_icon" />
+
+        <ImageButton
+            android:id="@+id/btnCredentials"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@android:drawable/ic_lock_lock"
+            android:contentDescription="Credentials"
+            android:tint="@color/toolbar_icon" />
+
+        <View
+            android:layout_width="0dp"
+            android:layout_height="1dp"
+            android:layout_weight="1" />
+
+        <ImageButton
+            android:id="@+id/btnLanguage"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@android:drawable/ic_menu_sort_by_size"
+            android:contentDescription="Language"
+            android:tint="@color/toolbar_icon" />
+
+        <ImageButton
+            android:id="@+id/btnSettings"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@android:drawable/ic_menu_manage"
+            android:contentDescription="Settings"
+            android:tint="@color/toolbar_icon" />
+
+        <ImageButton
+            android:id="@+id/btnVoice"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@android:drawable/ic_btn_speak_now"
+            android:contentDescription="Voice"
+            android:tint="@color/toolbar_icon" />
+    </LinearLayout>
+
+    <!-- Suggestion Bar -->
+    <LinearLayout
+        android:id="@+id/suggestionBar"
+        android:layout_width="match_parent"
+        android:layout_height="40dp"
+        android:orientation="horizontal"
+        android:background="@color/suggestion_bg"
+        android:visibility="gone">
+
+        <TextView
+            android:id="@+id/suggestion1"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:text="suggestion"
+            android:textColor="@color/suggestion_text"
+            android:textSize="14sp"
+            android:background="?attr/selectableItemBackground" />
+
+        <View
+            android:layout_width="1dp"
+            android:layout_height="match_parent"
+            android:background="@color/suggestion_divider" />
+
+        <TextView
+            android:id="@+id/suggestion2"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:text="suggestion"
+            android:textColor="@color/suggestion_text"
+            android:textSize="14sp"
+            android:background="?attr/selectableItemBackground" />
+
+        <View
+            android:layout_width="1dp"
+            android:layout_height="match_parent"
+            android:background="@color/suggestion_divider" />
+
+        <TextView
+            android:id="@+id/suggestion3"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:text="suggestion"
+            android:textColor="@color/suggestion_text"
+            android:textSize="14sp"
+            android:background="?attr/selectableItemBackground" />
+    </LinearLayout>
+
+    <!-- Voice Bar -->
+    <LinearLayout
+        android:id="@+id/voiceBar"
+        android:layout_width="match_parent"
+        android:layout_height="60dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:background="@color/voice_bar_bg"
+        android:paddingStart="12dp"
+        android:paddingEnd="12dp"
+        android:visibility="gone">
+
+        <!-- Engine Selector -->
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="36dp"
+            android:orientation="horizontal"
+            android:background="@drawable/engine_selector_bg">
+
+            <TextView
+                android:id="@+id/btnEngineAndroid"
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"
+                android:gravity="center"
+                android:text="Android"
+                android:textSize="12sp"
+                android:textColor="@color/engine_active_text"
+                android:background="@drawable/engine_active_bg" />
+
+            <TextView
+                android:id="@+id/btnEngineGroq"
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"
+                android:gravity="center"
+                android:text="Groq"
+                android:textSize="12sp"
+                android:textColor="@color/engine_selector_text" />
+        </LinearLayout>
+
+        <!-- Visualizer -->
+        <LinearLayout
+            android:id="@+id/visualizer"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:layout_marginStart="16dp"
+            android:layout_marginEnd="16dp"
+            android:orientation="horizontal"
+            android:gravity="center">
+
+            <View
+                android:id="@+id/bar1"
+                android:layout_width="4dp"
+                android:layout_height="20dp"
+                android:layout_margin="2dp"
+                android:background="@color/visualizer_bar" />
+            <View
+                android:id="@+id/bar2"
+                android:layout_width="4dp"
+                android:layout_height="30dp"
+                android:layout_margin="2dp"
+                android:background="@color/visualizer_bar" />
+            <View
+                android:id="@+id/bar3"
+                android:layout_width="4dp"
+                android:layout_height="40dp"
+                android:layout_margin="2dp"
+                android:background="@color/visualizer_bar" />
+            <View
+                android:id="@+id/bar4"
+                android:layout_width="4dp"
+                android:layout_height="25dp"
+                android:layout_margin="2dp"
+                android:background="@color/visualizer_bar" />
+            <View
+                android:id="@+id/bar5"
+                android:layout_width="4dp"
+                android:layout_height="35dp"
+                android:layout_margin="2dp"
+                android:background="@color/visualizer_bar" />
+        </LinearLayout>
+
+        <!-- Stop Button -->
+        <ImageButton
+            android:id="@+id/btnStopVoice"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:background="@drawable/stop_button_bg"
+            android:src="@android:drawable/ic_menu_close_clear_cancel"
+            android:contentDescription="Stop"
+            android:tint="@color/key_action_text" />
+    </LinearLayout>
+
+    <!-- Keyboard Container -->
+    <FrameLayout
+        android:id="@+id/keyboardContainer"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content" />
+
+</LinearLayout>
