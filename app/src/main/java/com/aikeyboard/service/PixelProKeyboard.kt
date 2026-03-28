@@ -284,7 +284,7 @@ class PixelProKeyboard : android.inputmethodservice.InputMethodService() {
         }
 
         keys.forEach { key ->
-            val btn = Button(context)
+            val btn = Button(this@PixelProKeyboard)
 
             when (key) {
                 "⇧" -> {
@@ -329,7 +329,7 @@ class PixelProKeyboard : android.inputmethodservice.InputMethodService() {
                 key in listOf("⇧", "⇪", "⌫", "123", "?123", "↵") -> 15f
                 else -> 20f
             }
-            btn.textAllCaps = false
+            btn.isAllCaps = false
 
             val weight = when {
                 isBottom && key == "SPACE" -> 5f
