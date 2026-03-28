@@ -321,7 +321,7 @@ class AiKeyboardService : android.inputmethodservice.InputMethodService() {
             when (action) {
                 EditorInfo.IME_ACTION_GO, EditorInfo.IME_ACTION_SEARCH,
                 EditorInfo.IME_ACTION_SEND, EditorInfo.IME_ACTION_DONE -> {
-                    performEditorAction(action)
+                    ic.performEditorAction(action)
                 }
                 else -> {
                     ic.commitText("\n", 1)
