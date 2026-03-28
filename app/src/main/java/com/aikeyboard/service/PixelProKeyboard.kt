@@ -82,9 +82,9 @@ class PixelProKeyboard : android.inputmethodservice.InputMethodService() {
         listOf("ঔ","ঐ","আ","ঈ","ঊ","ঋ","এ","অ","ই","উ"),
         listOf("ও","্য","ড়","ঢ়","ৎ","ং","ঃ","ঁ","ক","খ"),
         listOf("⇧","গ","ঘ","ঙ","চ","ছ","জ","ঝ","ঞ","⌫"),
-        listOf("?123","ট","ঠ","ড","ঢ","ণ","ত","থ","দ","ধ"),
+        listOf("123","ট","ঠ","ড","ঢ","ণ","ত","থ","দ","ধ"),
         listOf("ন","প","ফ","ব","ভ","ম","য","র","ল","শ"),
-        listOf("?123","ষ","স","হ","SPACE","।","↵")
+        listOf("123","ষ","স","হ","SPACE","।","↵")
     )
 
     override fun onCreate() {
@@ -169,7 +169,7 @@ class PixelProKeyboard : android.inputmethodservice.InputMethodService() {
                         "⇧", "⇪" -> toggleCaps()
                         "⌫" -> handleDelete()
                         "↵" -> handleEnter()
-                        "?123" -> show("Numbers coming soon")
+                        "123", "?123" -> show("Numbers coming soon")
                         "English", "বাংলা" -> sendChar(' ')
                         else -> {
                             sendText(keyText)
@@ -259,7 +259,7 @@ class PixelProKeyboard : android.inputmethodservice.InputMethodService() {
             addKeyRow(listOf("q","w","e","r","t","y","u","i","o","p"))
             addKeyRow(listOf("a","s","d","f","g","h","j","k","l"))
             addKeyRow(listOf("⇧","z","x","c","v","b","n","m","⌫"), hasSpecial = true)
-            addKeyRow(listOf("?123",",","SPACE",".","↵"), isBottom = true)
+            addKeyRow(listOf("123",",","SPACE",".","↵"), isBottom = true)
         } else {
             // Build Bangla layout
             banglaRows.forEachIndexed { i, row ->
@@ -310,8 +310,8 @@ class PixelProKeyboard : android.inputmethodservice.InputMethodService() {
                     btn.setBackgroundResource(R.drawable.bg_key_accent)
                     btn.setTextColor(Color.WHITE)
                 }
-                "?123" -> {
-                    btn.text = "?123"
+                "123", "?123" -> {
+                    btn.text = "123"
                     btn.setBackgroundResource(R.drawable.bg_key_special)
                     btn.textSize = 15f
                 }
@@ -326,14 +326,14 @@ class PixelProKeyboard : android.inputmethodservice.InputMethodService() {
             btn.textSize = when {
                 key == "SPACE" -> 15f
                 key.length > 2 -> 15f
-                key in listOf("⇧", "⇪", "⌫", "?123", "↵") -> 15f
+                key in listOf("⇧", "⇪", "⌫", "123", "?123", "↵") -> 15f
                 else -> 20f
             }
             btn.textAllCaps = false
 
             val weight = when {
                 isBottom && key == "SPACE" -> 5f
-                isBottom && key == "?123" -> 1.3f
+                isBottom && (key == "123" || key == "?123") -> 1.3f
                 isBottom && key == "↵" -> 1.6f
                 isBottom && key in listOf(",", ".") -> 1f
                 hasSpecial && key in listOf("⇧", "⇪", "⌫") -> 1.3f

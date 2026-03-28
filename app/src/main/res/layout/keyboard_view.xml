@@ -77,7 +77,7 @@
             android:layout_width="match_parent"
             android:layout_height="48dp"
             android:visibility="gone"
-            android:background="?attr/colorBackground"
+            android:background="#FFFFFF"
             android:orientation="horizontal"
             tools:visibility="visible">
 
@@ -223,7 +223,7 @@
 
         <!-- ROW 4 (Bottom) -->
         <LinearLayout style="@style/KeyboardRow">
-            <Button style="@style/KeyButton.Sp" android:text="?123" />
+            <Button style="@style/KeyButton.Sp" android:text="123" />
             <Button style="@style/KeyButton.Small" android:text="," />
             <Button style="@style/KeyButton.Space" android:text="English" />
             <Button style="@style/KeyButton.Small" android:text="." />
