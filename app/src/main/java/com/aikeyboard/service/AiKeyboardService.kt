@@ -34,6 +34,7 @@ class AiKeyboardService : android.inputmethodservice.InputMethodService() {
     private var isRecording = false
 
     // Views
+    private var rootView: View? = null
     private lateinit var voiceBar: LinearLayout
     private lateinit var keyboardKeys: LinearLayout
     private lateinit var btnEngineAndroid: TextView
@@ -47,7 +48,7 @@ class AiKeyboardService : android.inputmethodservice.InputMethodService() {
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private val client = OkHttpClient()
 
-    // All letter key IDs
+    // Letter key IDs
     private val letterKeyIds = listOf(
         R.id.key_q, R.id.key_w, R.id.key_e, R.id.key_r, R.id.key_t,
         R.id.key_y, R.id.key_u, R.id.key_i, R.id.key_o, R.id.key_p,
@@ -63,53 +64,60 @@ class AiKeyboardService : android.inputmethodservice.InputMethodService() {
     }
 
     override fun onCreateInputView(): View {
-        val root = layoutInflater.inflate(R.layout.keyboard_view, null)
+        rootView = layoutInflater.inflate(R.layout.keyboard_view, null)
         
-        voiceBar = root.findViewById(R.id.voiceBar)
-        keyboardKeys = root.findViewById(R.id.keyboardKeys)
-        btnEngineAndroid = root.findViewById(R.id.btnEngineAndroid)
-        btnEngineGroq = root.findViewById(R.id.btnEngineGroq)
-        voiceStatus = root.findViewById(R.id.voiceStatus)
+        voiceBar = rootView!!.findViewById(R.id.voiceBar)
+        keyboardKeys = rootView!!.findViewById(R.id.keyboardKeys)
+        btnEngineAndroid = rootView!!.findViewById(R.id.btnEngineAndroid)
+        btnEngineGroq = rootView!!.findViewById(R.id.btnEngineGroq)
+        voiceStatus = rootView!!.findViewById(R.id.voiceStatus)
 
-        // Setup all letter key clicks
-        letterKeyIds.forEach { id ->
-            root.findViewById<Button>(id)?.setOnClickListener { v ->
-                val btn = v as Button
-                val letter = btn.text.toString()
-                val text = if (isShift || isCapsLock) letter.uppercase() else letter.lowercase()
-                commitText(text)
-                if (isShift && !isCapsLock) {
-                    isShift = false
-                    updateKeyCase()
+        setupKeyListeners()
+        return rootView!!
+    }
+
+    private fun setupKeyListeners() {
+        rootView?.let { root ->
+            // Letter keys
+            letterKeyIds.forEach { id ->
+                root.findViewById<Button>(id)?.setOnClickListener { v ->
+                    val btn = v as Button
+                    val letter = btn.text.toString()
+                    val text = if (isShift || isCapsLock) letter.uppercase() else letter.lowercase()
+                    commitText(text)
+                    if (isShift && !isCapsLock) {
+                        isShift = false
+                        updateKeyCase()
+                    }
                 }
             }
+
+            // Special keys
+            root.findViewById<Button>(R.id.key_shift)?.setOnClickListener { toggleShift() }
+            root.findViewById<Button>(R.id.key_backspace)?.setOnClickListener { handleBackspace() }
+            root.findViewById<Button>(R.id.key_numbers)?.setOnClickListener { 
+                Toast.makeText(this, "Numbers coming soon!", Toast.LENGTH_SHORT).show() 
+            }
+            root.findViewById<Button>(R.id.key_comma)?.setOnClickListener { commitText(",") }
+            root.findViewById<Button>(R.id.key_space)?.setOnClickListener { commitText(" ") }
+            root.findViewById<Button>(R.id.key_dot)?.setOnClickListener { commitText(".") }
+            root.findViewById<Button>(R.id.key_enter)?.setOnClickListener { handleEnter() }
+
+            // Toolbar
+            root.findViewById<ImageButton>(R.id.btnVoice)?.setOnClickListener { toggleVoice() }
+            root.findViewById<ImageButton>(R.id.btnLanguage)?.setOnClickListener { cycleLanguage() }
+            root.findViewById<ImageButton>(R.id.btnEmoji)?.setOnClickListener { 
+                Toast.makeText(this, "Emoji coming soon!", Toast.LENGTH_SHORT).show() 
+            }
+            root.findViewById<ImageButton>(R.id.btnClipboard)?.setOnClickListener { 
+                Toast.makeText(this, "Clipboard coming soon!", Toast.LENGTH_SHORT).show() 
+            }
+
+            // Voice controls
+            btnEngineAndroid.setOnClickListener { selectEngine(VoiceEngine.ANDROID) }
+            btnEngineGroq.setOnClickListener { selectEngine(VoiceEngine.GROQ) }
+            root.findViewById<ImageButton>(R.id.btnStopVoice)?.setOnClickListener { stopVoice() }
         }
-
-        // Special keys
-        root.findViewById<Button>(R.id.key_shift)?.setOnClickListener { toggleShift() }
-        root.findViewById<Button>(R.id.key_backspace)?.setOnClickListener { handleBackspace() }
-        root.findViewById<Button>(R.id.key_numbers)?.setOnClickListener { toggleNumbers() }
-        root.findViewById<Button>(R.id.key_comma)?.setOnClickListener { commitText(",") }
-        root.findViewById<Button>(R.id.key_space)?.setOnClickListener { commitText(" ") }
-        root.findViewById<Button>(R.id.key_dot)?.setOnClickListener { commitText(".") }
-        root.findViewById<Button>(R.id.key_enter)?.setOnClickListener { handleEnter() }
-
-        // Toolbar buttons
-        root.findViewById<ImageButton>(R.id.btnVoice)?.setOnClickListener { toggleVoice() }
-        root.findViewById<ImageButton>(R.id.btnLanguage)?.setOnClickListener { cycleLanguage() }
-        root.findViewById<ImageButton>(R.id.btnEmoji)?.setOnClickListener { 
-            Toast.makeText(this, "Emoji coming soon!", Toast.LENGTH_SHORT).show() 
-        }
-        root.findViewById<ImageButton>(R.id.btnClipboard)?.setOnClickListener { 
-            Toast.makeText(this, "Clipboard coming soon!", Toast.LENGTH_SHORT).show() 
-        }
-
-        // Voice engine selector
-        btnEngineAndroid.setOnClickListener { selectEngine(VoiceEngine.ANDROID) }
-        btnEngineGroq.setOnClickListener { selectEngine(VoiceEngine.GROQ) }
-        root.findViewById<ImageButton>(R.id.btnStopVoice)?.setOnClickListener { stopVoice() }
-
-        return root
     }
 
     private fun commitText(text: String) {
@@ -151,25 +159,17 @@ class AiKeyboardService : android.inputmethodservice.InputMethodService() {
             isShift = true
         }
         updateKeyCase()
-        Toast.makeText(this, 
-            if (isCapsLock) "CAPS LOCK ON" 
-            else if (isShift) "Shift ON" 
-            else "Shift OFF", 
-            Toast.LENGTH_SHORT
-        ).show()
     }
 
     private fun updateKeyCase() {
-        letterKeyIds.forEach { id ->
-            findViewById<Button>(id)?.let { btn ->
-                val letter = btn.text.toString().lowercase()
-                btn.text = if (isShift || isCapsLock) letter.uppercase() else letter
+        rootView?.let { root ->
+            letterKeyIds.forEach { id ->
+                root.findViewById<Button>(id)?.let { btn ->
+                    val letter = btn.text.toString().lowercase()
+                    btn.text = if (isShift || isCapsLock) letter.uppercase() else letter
+                }
             }
         }
-    }
-
-    private fun toggleNumbers() {
-        Toast.makeText(this, "Numbers/Symbols coming soon!", Toast.LENGTH_SHORT).show()
     }
 
     private fun cycleLanguage() {
@@ -190,11 +190,7 @@ class AiKeyboardService : android.inputmethodservice.InputMethodService() {
 
     // Voice Recognition
     private fun toggleVoice() {
-        if (isVoiceActive) {
-            stopVoice()
-        } else {
-            startVoice()
-        }
+        if (isVoiceActive) stopVoice() else startVoice()
     }
 
     private fun startVoice() {
@@ -230,10 +226,7 @@ class AiKeyboardService : android.inputmethodservice.InputMethodService() {
     private fun selectEngine(engine: VoiceEngine) {
         currentEngine = engine
         updateEngineUI()
-        if (isVoiceActive) {
-            stopVoice()
-            startVoice()
-        }
+        if (isVoiceActive) { stopVoice(); startVoice() }
     }
 
     private fun updateEngineUI() {
@@ -250,22 +243,15 @@ class AiKeyboardService : android.inputmethodservice.InputMethodService() {
         }
     }
 
-    // Android Offline Recognition
     private fun startAndroidRecognition() {
         speechRecognizer?.setRecognitionListener(object : RecognitionListener {
-            override fun onReadyForSpeech(params: Bundle?) {
-                voiceStatus.text = "🎤 Listening..."
-            }
+            override fun onReadyForSpeech(params: Bundle?) { voiceStatus.text = "🎤 Listening..." }
             override fun onBeginningOfSpeech() {}
             override fun onRmsChanged(rmsdB: Float) {}
             override fun onBufferReceived(buffer: ByteArray?) {}
-            override fun onEndOfSpeech() {
-                if (isRecording) startAndroidRecognition()
-            }
-            override fun onError(error: Int) {
-                if (isRecording && error != SpeechRecognizer.ERROR_NO_MATCH) {
-                    startAndroidRecognition()
-                }
+            override fun onEndOfSpeech() { if (isRecording) startAndroidRecognition() }
+            override fun onError(error: Int) { 
+                if (isRecording && error != SpeechRecognizer.ERROR_NO_MATCH) startAndroidRecognition() 
             }
             override fun onResults(results: Bundle?) {
                 val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
@@ -285,11 +271,8 @@ class AiKeyboardService : android.inputmethodservice.InputMethodService() {
         speechRecognizer?.startListening(intent)
     }
 
-    private fun stopAndroidRecognition() {
-        speechRecognizer?.stopListening()
-    }
+    private fun stopAndroidRecognition() { speechRecognizer?.stopListening() }
 
-    // Groq Online Recognition
     private fun startGroqRecording() {
         try {
             audioFile = File(cacheDir, "voice_recording.m4a")
@@ -303,9 +286,9 @@ class AiKeyboardService : android.inputmethodservice.InputMethodService() {
                 prepare()
                 start()
             }
-            voiceStatus.text = "🎤 Recording... Tap stop when done"
+            voiceStatus.text = "🎤 Recording... Tap stop"
         } catch (e: Exception) {
-            Toast.makeText(this, "Recording failed: ${e.message}", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, "Recording failed", Toast.LENGTH_LONG).show()
             stopVoice()
         }
     }
@@ -314,9 +297,7 @@ class AiKeyboardService : android.inputmethodservice.InputMethodService() {
         try {
             mediaRecorder?.apply { stop(); release() }
             mediaRecorder = null
-            audioFile?.let { file ->
-                if (file.exists() && file.length() > 0) sendToGroq(file)
-            }
+            audioFile?.let { if (it.exists() && it.length() > 0) sendToGroq(it) }
         } catch (e: Exception) { }
         audioFile = null
     }
