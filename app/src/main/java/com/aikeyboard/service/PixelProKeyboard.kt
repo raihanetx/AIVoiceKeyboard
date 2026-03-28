@@ -3,6 +3,7 @@ package com.aikeyboard.service
 import android.Manifest
 import android.content.ClipboardManager
 import android.content.Context
+import android.content.Intent
 import android.content.SharedPreferences
 import android.content.pm.PackageManager
 import android.graphics.Color
@@ -334,7 +335,7 @@ class PixelProKeyboard : android.inputmethodservice.InputMethodService() {
         }
         
         emojiCategories.keys.forEach { category ->
-            val catBtn = TextView(context).apply {
+            val catBtn = TextView(this@PixelProKeyboard).apply {
                 text = category
                 textSize = 18f
                 setPadding(dp(10), dp(6), dp(10), dp(6))
