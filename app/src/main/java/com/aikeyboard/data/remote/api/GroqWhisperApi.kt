@@ -2,10 +2,9 @@ package com.aikeyboard.data.remote.api
 
 import android.content.Context
 import android.util.Log
-import com.aikeyboard.core.constants.ApiConstants
 import com.aikeyboard.data.local.PreferencesManager
-import com.aikeyboard.data.remote.dto.TranscriptionError
-import com.aikeyboard.data.remote.dto.TranscriptionResponse
+import com.google.gson.JsonObject
+import com.google.gson.JsonParser
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
@@ -21,36 +20,40 @@ import java.util.concurrent.TimeUnit
 
 private const val TAG = "GroqWhisperApi"
 
-/**
- * Groq Whisper API client for speech-to-text transcription
- * 
- * Fast, accurate speech-to-text using Groq's Whisper Large V3 model.
- * Free tier: ~10,000 requests/day
- * Get API key from: https://console.groq.com
- */
 class GroqWhisperApi(private val context: Context) {
 
+    companion object {
+        private const val GROQ_ENDPOINT = "https://api.groq.com/openai/v1"
+        private const val GROQ_WHISPER_MODEL = "whisper-large-v3"
+        private const val CONNECT_TIMEOUT = 30L
+        private const val READ_TIMEOUT = 60L
+        private const val WRITE_TIMEOUT = 60L
+
+        @Volatile
+        private var instance: GroqWhisperApi? = null
+
+        fun getInstance(context: Context): GroqWhisperApi {
+            return instance ?: synchronized(this) {
+                instance ?: GroqWhisperApi(context.applicationContext).also { 
+                    instance = it 
+                }
+            }
+        }
+    }
+
     private val client = OkHttpClient.Builder()
-        .connectTimeout(ApiConstants.CONNECT_TIMEOUT, TimeUnit.SECONDS)
-        .readTimeout(ApiConstants.READ_TIMEOUT, TimeUnit.SECONDS)
-        .writeTimeout(ApiConstants.WRITE_TIMEOUT, TimeUnit.SECONDS)
+        .connectTimeout(CONNECT_TIMEOUT, TimeUnit.SECONDS)
+        .readTimeout(READ_TIMEOUT, TimeUnit.SECONDS)
+        .writeTimeout(WRITE_TIMEOUT, TimeUnit.SECONDS)
         .build()
 
     private val preferencesManager: PreferencesManager by lazy { PreferencesManager.getInstance(context) }
 
-    /**
-     * Transcribe audio file to text
-     * 
-     * @param audioFile The audio file to transcribe
-     * @param language The language code (e.g., "en", "bn")
-     * @return Result containing the transcribed text or an error
-     */
     suspend fun transcribe(
         audioFile: File,
         language: String
     ): Result<String> = withContext(Dispatchers.IO) {
         try {
-            // Validate file
             if (!audioFile.exists()) {
                 return@withContext Result.failure(Exception("Audio file does not exist"))
             }
@@ -58,10 +61,9 @@ class GroqWhisperApi(private val context: Context) {
                 return@withContext Result.failure(Exception("Audio file is empty"))
             }
 
-            // Check API key from PreferencesManager
             val apiKey = preferencesManager.getGroqApiKey()
             if (apiKey.isBlank()) {
-                return@withContext Result.failure(Exception("Groq API key not configured. Go to Settings > API Keys to add your key. Get free key from https://console.groq.com"))
+                return@withContext Result.failure(Exception("Groq API key not configured. Get free key from https://console.groq.com"))
             }
 
             val audioBytes = audioFile.readBytes()
@@ -69,10 +71,9 @@ class GroqWhisperApi(private val context: Context) {
 
             Log.d(TAG, "Transcribing: ${audioFile.name}, mimeType: $mimeType, size: ${audioFile.length()}")
 
-            // Build multipart form request
             val requestBody = MultipartBody.Builder()
                 .setType(MultipartBody.FORM)
-                .addFormDataPart("model", ApiConstants.GROQ_WHISPER_MODEL)
+                .addFormDataPart("model", GROQ_WHISPER_MODEL)
                 .addFormDataPart("language", if (language == "bn") "bn" else "en")
                 .addFormDataPart("response_format", "json")
                 .addFormDataPart("temperature", "0.0")
@@ -84,7 +85,7 @@ class GroqWhisperApi(private val context: Context) {
                 .build()
 
             val request = Request.Builder()
-                .url("${ApiConstants.GROQ_ENDPOINT}/audio/transcriptions")
+                .url("$GROQ_ENDPOINT/audio/transcriptions")
                 .addHeader("Authorization", "Bearer $apiKey")
                 .post(requestBody)
                 .build()
@@ -93,11 +94,12 @@ class GroqWhisperApi(private val context: Context) {
                 val bodyString = response.body?.string()
                 
                 if (response.isSuccessful && !bodyString.isNullOrBlank()) {
-                    val transcriptionResponse = TranscriptionResponse.fromJson(bodyString)
+                    val json = JsonParser.parseString(bodyString).asJsonObject
+                    val text = json.get("text")?.asString ?: ""
                     
-                    if (transcriptionResponse.isValid) {
-                        Log.d(TAG, "Transcription success: ${transcriptionResponse.text.take(50)}...")
-                        Result.success(transcriptionResponse.text.trim())
+                    if (text.isNotBlank()) {
+                        Log.d(TAG, "Transcription success: ${text.take(50)}...")
+                        Result.success(text.trim())
                     } else {
                         Result.failure(Exception("Empty transcription"))
                     }
@@ -119,23 +121,10 @@ class GroqWhisperApi(private val context: Context) {
         }
     }
 
-    /**
-     * Check if the API is configured and available
-     */
     fun isConfigured(): Boolean {
         return preferencesManager.isGroqApiKeyConfigured()
     }
 
-    /**
-     * Get supported languages
-     */
-    fun getSupportedLanguages(): List<String> {
-        return listOf("en", "bn")
-    }
-
-    /**
-     * Get MIME type for audio file
-     */
     private fun getMimeType(file: File): String {
         return when (file.extension.lowercase()) {
             "3gp" -> "audio/3gpp"
@@ -147,30 +136,15 @@ class GroqWhisperApi(private val context: Context) {
         }
     }
 
-    /**
-     * Parse error response
-     */
     private fun parseError(code: Int, body: String?): String {
         if (body.isNullOrBlank()) return "API Error: $code"
         
         return try {
-            val error = TranscriptionError.fromJson(body)
-            error.message
+            val json = JsonParser.parseString(body).asJsonObject
+            val errorObj = json.getAsJsonObject("error")
+            errorObj?.get("message")?.asString ?: "API Error: $code"
         } catch (e: Exception) {
             "API Error: $code"
-        }
-    }
-
-    companion object {
-        @Volatile
-        private var instance: GroqWhisperApi? = null
-
-        fun getInstance(context: Context): GroqWhisperApi {
-            return instance ?: synchronized(this) {
-                instance ?: GroqWhisperApi(context.applicationContext).also { 
-                    instance = it 
-                }
-            }
         }
     }
 }

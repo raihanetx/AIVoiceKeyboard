@@ -1,301 +1,590 @@
 package com.aikeyboard.presentation.keyboard
 
 import android.Manifest
+import android.animation.ValueAnimator
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Color
+import android.graphics.Typeface
+import android.graphics.drawable.GradientDrawable
 import android.inputmethodservice.InputMethodService
+import android.os.Build
 import android.os.Bundle
+import android.os.VibrationEffect
+import android.os.Vibrator
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import android.util.Log
 import android.view.Gravity
+import android.view.MotionEvent
 import android.view.View
+import android.view.animation.AccelerateDecelerateInterpolator
 import android.widget.*
 import androidx.core.app.ActivityCompat
-import com.aikeyboard.core.constants.ApiConstants
-import com.aikeyboard.core.constants.AppConstants
-import com.aikeyboard.core.extension.dpToPx
 import com.aikeyboard.core.util.AudioRecorder
 import com.aikeyboard.data.local.PreferencesManager
-import com.aikeyboard.data.remote.api.GeminiLiveApi
 import com.aikeyboard.data.remote.api.GroqWhisperApi
-import com.aikeyboard.data.remote.api.ZAiApi
-import com.aikeyboard.domain.model.Language
 import com.aikeyboard.domain.model.TranscriptionResult
-import com.aikeyboard.domain.model.TranslationResult
-import com.aikeyboard.presentation.keyboard.view.EmojiView
-import com.aikeyboard.presentation.keyboard.view.KeyboardView
-import com.aikeyboard.presentation.keyboard.view.TranslateView
-import com.aikeyboard.presentation.keyboard.view.VoiceInputView
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 
-/**
- * AI Voice Keyboard Input Method Service
- * 
- * Main keyboard service that handles text input, voice recognition,
- * and translation features.
- */
 class AiKeyboardService : InputMethodService() {
 
     companion object {
-        private const val TAG = "AiKeyboard"
+        private const val TAG = "PixelProKeyboard"
     }
 
-    // Controller for state management
-    private val controller = KeyboardController()
+    // === DICTIONARIES ===
+    private val DICT_ARR = listOf("the", "quick", "brown", "fox", "jumps", "over", "lazy", "dog", "hello", "world", "apple", "application", "android", "pixel", "premium", "good", "morning", "night", "how", "are", "you", "what", "where", "when", "why", "who", "awesome", "amazing", "keyboard", "i", "am", "have", "will", "best", "way", "only", "is", "a", "to", "it", "its", "on", "in", "at", "this", "that", "we", "us", "they", "them", "he", "she", "his", "her", "and", "or", "but", "so", "because", "yes", "no", "my", "mine", "car", "cat", "can", "boy", "girl", "time", "person", "year", "day", "thing", "man", "woman", "life", "child", "work", "new", "first", "last", "long", "great", "little", "own", "other", "old", "right", "big", "high", "different", "small", "large", "next", "early", "young", "important", "few", "public", "bad", "same", "able", "do", "say", "go", "get", "make", "know", "think", "take", "see", "come", "want", "look", "use", "find", "give", "tell", "work", "may", "should", "call", "try", "ask", "need", "feel", "become", "leave", "put", "mean", "keep", "let", "begin", "seem", "help", "talk", "turn", "start", "show", "hear", "play", "run", "move", "like", "live", "believe", "hold", "bring", "happen", "write", "provide", "sit", "stand", "lose", "pay", "meet", "include", "continue", "set", "learn", "change", "lead", "understand", "watch", "follow", "stop", "create", "speak", "read", "allow", "add", "spend", "grow", "open", "walk", "win", "offer", "remember", "love", "consider", "appear", "buy", "wait", "serve", "die", "send", "expect", "build", "stay", "fall", "cut", "reach", "kill", "remain")
+    
+    private val NEXT_WORD_MAP = mapOf(
+        "i" to listOf("am", "have", "will"), "the" to listOf("best", "way", "only"), "hello" to listOf("world", "there", "friend"),
+        "how" to listOf("are", "is", "to"), "good" to listOf("morning", "night", "luck"), "you" to listOf("are", "can", "will"),
+        "we" to listOf("are", "will", "have"), "they" to listOf("are", "will", "have"), "what" to listOf("is", "are", "do")
+    )
 
-    // Voice recognition
+    private val L = mapOf(
+        "en" to listOf(
+            listOf("q","w","e","r","t","y","u","i","o","p"),
+            listOf("a","s","d","f","g","h","j","k","l"),
+            listOf("⇧","z","x","c","v","b","n","m","⌫")
+        ),
+        "bn" to listOf(
+            listOf("ৌ","ৈ","া","ী","ূ","ব","হ","গ","দ","জ"),
+            listOf("ো","ে","্","ি","ু","প","র","ক","ত","চ"),
+            listOf("⇧","ং","ম","ন","স","ল","শ","⌫")
+        ),
+        "bn_shift" to listOf(
+            listOf("ঔ","ঐ","আ","ঈ","ঊ","ভ","ঙ","ঘ","ধ","ঝ"),
+            listOf("ও","এ","অ","ই","উ","ফ","ড়","খ","থ","ছ"),
+            listOf("⇧","ঃ","ণ","ঞ","ষ","য়","ঢ","⌫")
+        ),
+        "num" to listOf(
+            listOf("1","2","3","4","5","6","7","8","9","0"),
+            listOf("@","#","£","%","&","-","+","(",")"),
+            listOf("=/*","\"","'",":",";","!","?","⌫")
+        )
+    )
+
+    // === STATE ===
+    private var bufferText = ""
+    private var currentLang = "en"
+    private var currentMode = "alpha"
+    private var isCaps = false
+    private var isVoiceMode = false
+    private var selectedSttEngine = "android" // "android" or "groq"
+
+    // === COLORS ===
+    private val colorBg = Color.parseColor("#E8EAED")
+    private val colorKeyBg = Color.parseColor("#FFFFFF")
+    private val colorKeyText = Color.parseColor("#202124")
+    private val colorSpecialBg = Color.parseColor("#DADCE0")
+    private val colorAccent = Color.parseColor("#1A73E8")
+    private val colorDivider = Color.parseColor("#1A000000")
+    private val colorVoiceRed = Color.parseColor("#EA4335")
+    private val colorGroq = Color.parseColor("#2196F3")
+
+    // === VIEWS ===
+    private lateinit var rootContainer: LinearLayout
+    private lateinit var topArea: LinearLayout
+    private lateinit var toolbar: LinearLayout
+    private lateinit var suggestionBar: LinearLayout
+    private lateinit var voiceBar: LinearLayout
+    private lateinit var keyGrid: LinearLayout
+    private lateinit var engineSelector: LinearLayout
+    
+    private lateinit var sWord1: TextView
+    private lateinit var sWord2: TextView
+    private lateinit var sWord3: TextView
+    private lateinit var voiceResultText: TextView
+    private lateinit var visualizer: LinearLayout
+
+    // Voice Animator
+    private val animators = mutableListOf<ValueAnimator>()
+
+    // Voice Recognition
     private var speechRecognizer: SpeechRecognizer? = null
     private var audioRecorder: AudioRecorder? = null
     private var isRecording = false
 
-    // Preferences
+    // Preferences & API
     private val preferencesManager: PreferencesManager by lazy { PreferencesManager.getInstance(this) }
-
-    // API clients - lazy initialized with context
     private val groqWhisperApi: GroqWhisperApi by lazy { GroqWhisperApi.getInstance(this) }
-    private val geminiLiveApi: GeminiLiveApi by lazy { GeminiLiveApi.getInstance(this) }
-    private val zAiApi: ZAiApi by lazy { ZAiApi.instance }
-
-    // Views
-    private var mainLayout: LinearLayout? = null
 
     override fun onCreate() {
         super.onCreate()
-        Log.d(TAG, "=== KEYBOARD SERVICE CREATED ===")
+        Log.d(TAG, "=== PixelPro Keyboard Created ===")
         audioRecorder = AudioRecorder(this)
     }
 
     override fun onCreateInputView(): View {
-        Log.d(TAG, "=== Creating keyboard view ===")
-        return try {
-            mainLayout = createMainLayout()
-            mainLayout!!
-        } catch (e: Exception) {
-            Log.e(TAG, "Error creating keyboard view", e)
-            createErrorView("Error: ${e.message}")
-        }
-    }
-
-    /**
-     * Create the main keyboard layout
-     */
-    private fun createMainLayout(): LinearLayout {
-        return LinearLayout(this).apply {
+        rootContainer = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setBackgroundColor(Color.parseColor("#1A1A2E"))
-            layoutParams = android.view.ViewGroup.LayoutParams(
-                android.view.ViewGroup.LayoutParams.MATCH_PARENT,
-                android.view.ViewGroup.LayoutParams.WRAP_CONTENT
-            )
-
-            // Add header
-            addView(createHeader())
-
-            // Add content area based on current panel
-            addView(createPanelContent(controller.state.currentPanel))
-
-            // Add language switch
-            addView(createLanguageSwitch())
+            setBackgroundColor(colorBg)
+            setPadding(0, 0, 0, dpToPx(16))
         }
+
+        setupTopArea()
+        setupKeyGrid()
+        
+        return rootContainer
     }
 
-    /**
-     * Create the header with panel switcher
-     */
-    private fun createHeader(): LinearLayout {
-        return LinearLayout(this).apply {
+    // === SETUP UI ===
+
+    private fun setupTopArea() {
+        topArea = LinearLayout(this).apply { 
+            orientation = LinearLayout.VERTICAL 
+        }
+
+        // 1. Toolbar
+        toolbar = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
-            setBackgroundColor(Color.parseColor("#16213E"))
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dpToPx(44))
+            setPadding(dpToPx(4), 0, dpToPx(4), 0)
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        
+        // Left Buttons
+        toolbar.addView(createToolbarButton(android.R.drawable.ic_menu_emotics) { /* Emoji */ })
+        toolbar.addView(createToolbarButton(android.R.drawable.ic_menu_edit) { /* Clipboard */ })
+        toolbar.addView(createToolbarButton(android.R.drawable.ic_lock_lock) { /* Credentials */ })
+        
+        // Spacer
+        toolbar.addView(View(this).apply { layoutParams = LinearLayout.LayoutParams(0, 1, 1f) })
+        
+        // Right Buttons
+        toolbar.addView(createToolbarButton(android.R.drawable.ic_menu_mapmode) { swapLang() })
+        toolbar.addView(createToolbarButton(android.R.drawable.ic_menu_manage) { /* Settings */ })
+        toolbar.addView(createToolbarButton(android.R.drawable.ic_btn_speak_now) { toggleVoiceMode() })
+
+        topArea.addView(toolbar)
+
+        // 2. Suggestion Bar
+        suggestionBar = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dpToPx(48))
+            weightSum = 3f
+            visibility = View.GONE
+        }
+
+        sWord1 = createSuggestionTextView(Gravity.START)
+        sWord2 = createSuggestionTextView(Gravity.CENTER)
+        sWord3 = createSuggestionTextView(Gravity.END)
+
+        suggestionBar.addView(sWord1)
+        suggestionBar.addView(createVerticalDivider())
+        suggestionBar.addView(sWord2)
+        suggestionBar.addView(createVerticalDivider())
+        suggestionBar.addView(sWord3)
+
+        topArea.addView(suggestionBar)
+
+        // 3. Voice Bar
+        voiceBar = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+            setPadding(dpToPx(12), dpToPx(8), dpToPx(12), dpToPx(8))
+            visibility = View.GONE
+        }
+
+        // Engine Selector Row
+        engineSelector = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
-            setPadding(8, 10, 8, 10)
+            setPadding(0, 0, 0, dpToPx(8))
+        }
+        
+        val androidBtn = createEngineButton("Android (Offline)", "android", colorAccent)
+        val groqBtn = createEngineButton("Groq (Online)", "groq", colorGroq)
+        
+        engineSelector.addView(androidBtn)
+        engineSelector.addView(View(this).apply { layoutParams = LinearLayout.LayoutParams(dpToPx(8), 1) })
+        engineSelector.addView(groqBtn)
+        
+        voiceBar.addView(engineSelector)
 
-            val panels = listOf(
-                "ABC" to AppConstants.PANEL_KEYBOARD,
-                "🎤" to AppConstants.PANEL_VOICE,
-                "🌐" to AppConstants.PANEL_TRANSLATE,
-                "😀" to AppConstants.PANEL_EMOJI
-            )
+        // Voice Row: Lang Chip | Visualizer | Stop Button
+        val voiceRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dpToPx(48))
+            gravity = Gravity.CENTER_VERTICAL
+        }
 
-            panels.forEach { (label, panel) ->
-                addView(Button(this@AiKeyboardService).apply {
-                    text = label
-                    setTextColor(
-                        if (controller.state.currentPanel == panel) 
-                            Color.parseColor("#4285F4") 
-                        else 
-                            Color.WHITE
-                    )
-                    setBackgroundColor(Color.TRANSPARENT)
-                    textSize = 14f
-                    setAllCaps(false)
-                    setPadding(16, 8, 16, 8)
-                    setOnClickListener { switchPanel(panel) }
-                })
+        val langChip = TextView(this).apply {
+            text = if(currentLang == "en") "English" else "বাংলা"
+            setTextColor(colorKeyText)
+            textSize = 14f
+            typeface = Typeface.DEFAULT_BOLD
+            setPadding(dpToPx(12), dpToPx(8), dpToPx(12), dpToPx(8))
+            background = createRoundedDrawable(colorSpecialBg, 20f)
+        }
+        
+        visualizer = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            layoutParams = LinearLayout.LayoutParams(0, dpToPx(40), 1f)
+            gravity = Gravity.CENTER
+            tag = "visualizer"
+        }
+        
+        repeat(5) { visualizer.addView(createVoiceBar()) }
+
+        val stopBtn = ImageButton(this).apply {
+            layoutParams = LinearLayout.LayoutParams(dpToPx(36), dpToPx(36))
+            scaleType = ImageView.ScaleType.CENTER
+            setImageResource(android.R.drawable.ic_menu_close_clear_cancel)
+            setColorFilter(Color.WHITE)
+            background = createRoundedDrawable(colorVoiceRed, 18f)
+            setOnClickListener { stopVoiceRecording() }
+        }
+
+        voiceRow.addView(langChip)
+        voiceRow.addView(visualizer)
+        voiceRow.addView(stopBtn)
+
+        voiceBar.addView(voiceRow)
+
+        // Voice Result Text
+        voiceResultText = TextView(this).apply {
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+            setPadding(dpToPx(8), dpToPx(8), dpToPx(8), dpToPx(8))
+            textSize = 16f
+            setTextColor(colorKeyText)
+            gravity = Gravity.CENTER
+            visibility = View.GONE
+            background = createRoundedDrawable(Color.WHITE, 8f)
+        }
+        voiceBar.addView(voiceResultText)
+
+        topArea.addView(voiceBar)
+        rootContainer.addView(topArea)
+    }
+
+    private fun createEngineButton(text: String, engine: String, color: Int): TextView {
+        val isSelected = selectedSttEngine == engine
+        return TextView(this).apply {
+            this.text = text
+            setTextColor(if (isSelected) Color.WHITE else colorKeyText)
+            textSize = 13f
+            typeface = if (isSelected) Typeface.DEFAULT_BOLD else Typeface.DEFAULT
+            setPadding(dpToPx(12), dpToPx(8), dpToPx(12), dpToPx(8))
+            background = createRoundedDrawable(if (isSelected) color else colorSpecialBg, 20f)
+            setOnClickListener { 
+                selectedSttEngine = engine
+                rebuildVoiceUI()
             }
         }
     }
 
-    /**
-     * Switch to a different panel
-     */
-    private fun switchPanel(panel: String) {
-        controller.switchPanel(panel)
-        setInputView(onCreateInputView())
-        Log.d(TAG, "Switched to panel: $panel")
-    }
+    private fun rebuildVoiceUI() {
+        if (isVoiceMode) {
+            voiceBar.removeAllViews()
+            
+            // Re-add engine selector
+            engineSelector = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER
+                setPadding(0, 0, 0, dpToPx(8))
+            }
+            
+            val androidBtn = createEngineButton("Android (Offline)", "android", colorAccent)
+            val groqBtn = createEngineButton("Groq (Online)", "groq", colorGroq)
+            
+            engineSelector.addView(androidBtn)
+            engineSelector.addView(View(this).apply { layoutParams = LinearLayout.LayoutParams(dpToPx(8), 1) })
+            engineSelector.addView(groqBtn)
+            
+            voiceBar.addView(engineSelector)
 
-    /**
-     * Create content for the current panel
-     */
-    private fun createPanelContent(panel: String): View {
-        return when (panel) {
-            AppConstants.PANEL_VOICE -> createVoicePanel()
-            AppConstants.PANEL_TRANSLATE -> createTranslatePanel()
-            AppConstants.PANEL_EMOJI -> createEmojiPanel()
-            else -> createKeyboardPanel()
+            // Re-add voice row
+            val voiceRow = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dpToPx(48))
+                gravity = Gravity.CENTER_VERTICAL
+            }
+
+            val langChip = TextView(this@AiKeyboardService).apply {
+                text = if(currentLang == "en") "English" else "বাংলা"
+                setTextColor(colorKeyText)
+                textSize = 14f
+                typeface = Typeface.DEFAULT_BOLD
+                setPadding(dpToPx(12), dpToPx(8), dpToPx(12), dpToPx(8))
+                background = createRoundedDrawable(colorSpecialBg, 20f)
+            }
+            
+            visualizer = LinearLayout(this@AiKeyboardService).apply {
+                orientation = LinearLayout.HORIZONTAL
+                layoutParams = LinearLayout.LayoutParams(0, dpToPx(40), 1f)
+                gravity = Gravity.CENTER
+                tag = "visualizer"
+            }
+            
+            repeat(5) { visualizer.addView(createVoiceBar()) }
+
+            val stopBtn = ImageButton(this@AiKeyboardService).apply {
+                layoutParams = LinearLayout.LayoutParams(dpToPx(36), dpToPx(36))
+                scaleType = ImageView.ScaleType.CENTER
+                setImageResource(android.R.drawable.ic_menu_close_clear_cancel)
+                setColorFilter(Color.WHITE)
+                background = createRoundedDrawable(colorVoiceRed, 18f)
+                setOnClickListener { stopVoiceRecording() }
+            }
+
+            voiceRow.addView(langChip)
+            voiceRow.addView(visualizer)
+            voiceRow.addView(stopBtn)
+
+            voiceBar.addView(voiceRow)
+
+            // Re-add result text
+            voiceResultText.visibility = View.GONE
+            voiceBar.addView(voiceResultText)
         }
     }
 
-    // ==================== KEYBOARD PANEL ====================
-
-    private fun createKeyboardPanel(): LinearLayout {
-        return LinearLayout(this).apply {
+    private fun setupKeyGrid() {
+        keyGrid = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(0, dpToPx(4), 0, dpToPx(4))
-
-            val keyboardView = KeyboardView.create(
-                context = this@AiKeyboardService,
-                onKeyPress = { key -> handleKeyPress(key) },
-                onLongKeyPress = { key -> handleLongKeyPress(key) }
-            )
-            keyboardView.updateState(controller.state)
-            addView(keyboardView)
+            setPadding(dpToPx(6), dpToPx(6), dpToPx(6), 0)
         }
+        renderKeyboard()
+        rootContainer.addView(keyGrid)
     }
 
-    /**
-     * Handle key press
-     */
-    private fun handleKeyPress(key: String) {
-        when {
-            key == "⌫" -> {
-                controller.deleteLastChar()
-                currentInputConnection?.deleteSurroundingText(1, 0)
+    // === KEYBOARD RENDERER ===
+
+    private fun renderKeyboard() {
+        keyGrid.removeAllViews()
+        
+        val layoutMap = if (currentMode == "num") L["num"]!!
+                        else if (currentLang == "bn") if (isCaps) L["bn_shift"]!! else L["bn"]!!
+                        else L["en"]!!
+
+        layoutMap.forEachIndexed { index, rowKeys ->
+            val row = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+                gravity = Gravity.CENTER
+                if (index == 1) setPadding(dpToPx(10), 0, dpToPx(10), 0)
             }
-            key == "Space" -> {
-                controller.appendText(" ")
-                currentInputConnection?.commitText(" ", 1)
+
+            rowKeys.forEach { key ->
+                val btn = Button(this)
+                
+                when (key) {
+                    "⌫" -> {
+                        btn.text = ""
+                        btn.setCompoundDrawablesWithIntrinsicBounds(android.R.drawable.ic_input_delete, 0, 0, 0)
+                        btn.setOnTouchListener { _, event ->
+                            if (event.action == MotionEvent.ACTION_DOWN) handleDelete()
+                            false
+                        }
+                        setupKeyStyle(btn, isSpecial = true, flex = 1.3f)
+                    }
+                    "⇧" -> {
+                        btn.text = "⇧"
+                        btn.setOnClickListener { isCaps = !isCaps; renderKeyboard() }
+                        setupKeyStyle(btn, isSpecial = true, flex = 1.3f)
+                        if (isCaps) btn.setTextColor(colorAccent)
+                    }
+                    else -> {
+                        val char = if (isCaps && currentLang == "en" && currentMode == "alpha") key.uppercase() else key
+                        btn.text = char
+                        btn.setOnClickListener { handleKey(char) }
+                        setupKeyStyle(btn)
+                    }
+                }
+                row.addView(btn)
             }
-            key == "↵" -> {
-                currentInputConnection?.performEditorAction(
-                    android.view.inputmethod.EditorInfo.IME_ACTION_DONE
-                )
-            }
-            key == "⇧" -> {
-                controller.toggleCapsLock()
-                Toast.makeText(
-                    this,
-                    "CAPS: ${if (controller.state.capsLock) "ON" else "OFF"}",
-                    Toast.LENGTH_SHORT
-                ).show()
-            }
-            key == "😊" -> switchPanel(AppConstants.PANEL_EMOJI)
-            key == "?123" -> { /* Could switch to number/symbol keyboard */ }
-            else -> {
-                val char = if (controller.state.capsLock) key.uppercase() else key
-                controller.appendText(char)
-                currentInputConnection?.commitText(char, 1)
-            }
+            keyGrid.addView(row)
         }
+
+        // Bottom Row
+        val bottomRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+            gravity = Gravity.CENTER
+        }
+
+        val modeBtn = Button(this).apply {
+            text = if (currentMode == "num") "ABC" else "?123"
+            setOnClickListener { currentMode = if (currentMode == "num") "alpha" else "num"; renderKeyboard() }
+        }
+        setupKeyStyle(modeBtn, isSpecial = true, flex = 1.5f)
+
+        val commaBtn = Button(this).apply { text = ","; setOnClickListener { handleKey(",") } }
+        setupKeyStyle(commaBtn, isSpecial = true)
+
+        val spaceBtn = Button(this).apply { 
+            text = if(currentLang == "en") "English" else "বাংলা"
+            setOnClickListener { handleKey(" ") } 
+        }
+        setupKeyStyle(spaceBtn, isSpace = true, flex = 5f)
+
+        val dotBtn = Button(this).apply { text = "."; setOnClickListener { handleKey(".") } }
+        setupKeyStyle(dotBtn, isSpecial = true)
+
+        val enterBtn = Button(this).apply { 
+            text = "↵"
+            setOnClickListener { handleKey("\n") } 
+        }
+        setupKeyStyle(enterBtn, isEnter = true, flex = 1.5f)
+
+        bottomRow.addView(modeBtn)
+        bottomRow.addView(commaBtn)
+        bottomRow.addView(spaceBtn)
+        bottomRow.addView(dotBtn)
+        bottomRow.addView(enterBtn)
+        keyGrid.addView(bottomRow)
     }
 
-    /**
-     * Handle long key press
-     */
-    private fun handleLongKeyPress(key: String) {
-        if (key == "⌫") {
-            controller.clearText()
-            currentInputConnection?.deleteSurroundingText(10000, 0)
+    private fun setupKeyStyle(btn: Button, isSpecial: Boolean = false, isSpace: Boolean = false, isEnter: Boolean = false, flex: Float = 1.0f) {
+        val params = LinearLayout.LayoutParams(0, dpToPx(42)).apply {
+            weight = flex
+            marginStart = dpToPx(3)
+            marginEnd = dpToPx(3)
+            topMargin = dpToPx(4)
         }
+        btn.layoutParams = params
+        
+        btn.setTextColor(when {
+            isEnter -> Color.WHITE
+            else -> colorKeyText
+        })
+
+        btn.textSize = if (isSpace || isSpecial) 14f else 20f
+        btn.typeface = Typeface.DEFAULT
+        btn.setAllCaps(false)
+        btn.background = createRoundedDrawable(when {
+            isEnter -> colorAccent
+            isSpecial || isSpace -> colorSpecialBg
+            else -> colorKeyBg
+        }, 6f)
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) btn.stateListAnimator = null
     }
 
-    // ==================== VOICE PANEL ====================
+    // === INPUT LOGIC ===
 
-    private fun createVoicePanel(): LinearLayout {
-        return LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setBackgroundColor(Color.parseColor("#1A1A2E"))
-            setPadding(16, 16, 16, 16)
-            gravity = Gravity.CENTER_HORIZONTAL
-
-            val voiceInputView = VoiceInputView.create(
-                context = this@AiKeyboardService,
-                onMicClick = { toggleVoiceRecording() },
-                onEngineChange = { engine -> controller.setSttEngine(engine) },
-                onLanguageChange = { language -> controller.setLanguage(language) },
-                onInsertText = { text -> insertText(text) }
-            )
-            voiceInputView.updateState(controller.state)
-            addView(voiceInputView)
-        }
+    private fun handleKey(char: String) {
+        vibrate()
+        bufferText += char
+        currentInputConnection?.commitText(char, 1)
+        
+        if (isCaps && currentLang == "en") { isCaps = false; renderKeyboard() }
+        
+        updateSuggestions()
     }
 
-    /**
-     * Toggle voice recording
-     */
-    private fun toggleVoiceRecording() {
-        if (isRecording) {
-            stopVoiceRecording()
+    private fun handleDelete() {
+        vibrate()
+        if (bufferText.isNotEmpty()) bufferText = bufferText.dropLast(1)
+        currentInputConnection?.deleteSurroundingText(1, 0)
+        updateSuggestions()
+    }
+
+    private fun updateSuggestions() {
+        if (bufferText.trim().isEmpty()) {
+            suggestionBar.visibility = View.GONE
+            return
         } else {
+            suggestionBar.visibility = View.VISIBLE
+        }
+
+        val isTrailingSpace = bufferText.endsWith(" ") || bufferText.endsWith("\n")
+        val words = bufferText.trimEnd().split(Regex("[\\s\\n]+"))
+        val currentWord = if (isTrailingSpace) "" else words.last()
+        val prevWord = if (words.size > 1) words[words.size - 2].lowercase() else if (words.size == 1 && currentWord.isEmpty()) words[0].lowercase() else ""
+
+        val suggestions = mutableListOf<String>()
+        val generic = listOf("i", "the", "to")
+
+        if (currentWord.isNotEmpty()) {
+            suggestions.addAll(DICT_ARR.filter { it.startsWith(currentWord.lowercase()) && it != currentWord.lowercase() })
+        } else {
+            suggestions.addAll(NEXT_WORD_MAP[prevWord] ?: emptyList())
+        }
+
+        if (suggestions.isEmpty()) suggestions.addAll(generic)
+
+        sWord1.text = suggestions.getOrNull(0) ?: ""
+        sWord2.text = suggestions.getOrNull(1) ?: ""
+        sWord3.text = suggestions.getOrNull(2) ?: ""
+
+        sWord1.setOnClickListener { usePrediction(sWord1.text.toString()) }
+        sWord2.setOnClickListener { usePrediction(sWord2.text.toString()) }
+        sWord3.setOnClickListener { usePrediction(sWord3.text.toString()) }
+    }
+
+    private fun usePrediction(word: String) {
+        if (word.isEmpty()) return
+        val isCompletingWord = !bufferText.endsWith(" ") && !bufferText.endsWith("\n") && bufferText.isNotEmpty()
+        
+        if (isCompletingWord) {
+            val match = Regex("[a-zA-Z]+\$").find(bufferText)
+            if (match != null) {
+                val len = match.value.length
+                bufferText = bufferText.dropLast(len)
+                currentInputConnection?.deleteSurroundingText(len, 0)
+            }
+        }
+        handleKey("$word ")
+    }
+
+    private fun swapLang() {
+        currentLang = if (currentLang == "en") "bn" else "en"
+        currentMode = "alpha"
+        renderKeyboard()
+    }
+
+    // === VOICE MODE ===
+
+    private fun toggleVoiceMode() {
+        isVoiceMode = !isVoiceMode
+        if (isVoiceMode) {
+            toolbar.visibility = View.GONE
+            suggestionBar.visibility = View.GONE
+            voiceBar.visibility = View.VISIBLE
+            keyGrid.visibility = View.GONE
             startVoiceRecording()
+        } else {
+            stopVoiceRecording()
         }
     }
 
-    /**
-     * Start voice recording
-     */
     private fun startVoiceRecording() {
         // Check permission
-        if (ActivityCompat.checkSelfPermission(
-                this,
-                Manifest.permission.RECORD_AUDIO
-            ) != PackageManager.PERMISSION_GRANTED
-        ) {
-            controller.setRecordingStatus(false, "Microphone permission required")
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            showVoiceError("Microphone permission required")
             return
         }
 
         isRecording = true
-        controller.startRecording()
+        startVoiceAnimation()
 
-        when {
-            controller.state.isUsingAndroidStt -> startAndroidSpeechRecognizer()
-            controller.state.isUsingGeminiStt -> startGeminiRecording()
-            else -> startGroqRecording()
+        when (selectedSttEngine) {
+            "android" -> startAndroidSpeechRecognizer()
+            "groq" -> startGroqRecording()
         }
     }
 
-    /**
-     * Start Android Speech Recognizer
-     */
     private fun startAndroidSpeechRecognizer() {
         if (!SpeechRecognizer.isRecognitionAvailable(this)) {
-            controller.setRecordingStatus(false, "Speech recognition not available")
+            showVoiceError("Speech recognition not available")
             isRecording = false
+            stopVoiceAnimation()
             return
         }
 
         speechRecognizer = SpeechRecognizer.createSpeechRecognizer(this).apply {
             setRecognitionListener(object : RecognitionListener {
                 override fun onReadyForSpeech(params: Bundle?) {
-                    controller.setRecordingStatus(true, "Listening... Speak now")
+                    showVoiceStatus("Listening...")
                 }
 
                 override fun onBeginningOfSpeech() {}
@@ -303,35 +592,28 @@ class AiKeyboardService : InputMethodService() {
                 override fun onBufferReceived(buffer: ByteArray?) {}
 
                 override fun onEndOfSpeech() {
-                    controller.setRecordingStatus(false, "Processing...")
+                    // Don't stop - keep listening
                 }
 
                 override fun onError(error: Int) {
-                    isRecording = false
-                    controller.setTranscriptionResult(
-                        TranscriptionResult.Error(getSpeechErrorText(error))
-                    )
+                    showVoiceError(getSpeechErrorText(error))
                 }
 
                 override fun onResults(results: Bundle?) {
-                    isRecording = false
                     val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
                     if (!matches.isNullOrEmpty()) {
-                        controller.setTranscriptionResult(
-                            TranscriptionResult.Success(
-                                text = matches[0],
-                                language = controller.state.currentLanguage.code
-                            )
-                        )
-                    } else {
-                        controller.setRecordingStatus(false, "No speech detected")
+                        showVoiceResult(matches[0])
+                    }
+                    // Restart listening for continuous mode
+                    if (isRecording) {
+                        startAndroidSpeechRecognizer()
                     }
                 }
 
                 override fun onPartialResults(partialResults: Bundle?) {
                     val matches = partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
                     if (!matches.isNullOrEmpty()) {
-                        controller.setRecordingStatus(true, matches[0])
+                        showVoiceStatus(matches[0])
                     }
                 }
 
@@ -340,23 +622,82 @@ class AiKeyboardService : InputMethodService() {
         }
 
         val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-            putExtra(
-                RecognizerIntent.EXTRA_LANGUAGE_MODEL,
-                RecognizerIntent.LANGUAGE_MODEL_FREE_FORM
-            )
-            putExtra(
-                RecognizerIntent.EXTRA_LANGUAGE,
-                controller.state.currentLanguage.localeCode
-            )
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE, if (currentLang == "en") "en-US" else "bn-BD")
             putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
+            putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
         }
 
         speechRecognizer?.startListening(intent)
     }
 
-    /**
-     * Get error text for speech recognizer error codes
-     */
+    private fun startGroqRecording() {
+        if (!preferencesManager.isGroqApiKeyConfigured()) {
+            showVoiceError("Groq API key not set")
+            isRecording = false
+            stopVoiceAnimation()
+            return
+        }
+
+        val audioFile = audioRecorder?.startRecording()
+        if (audioFile == null) {
+            showVoiceError("Recording failed")
+            isRecording = false
+            stopVoiceAnimation()
+            return
+        }
+
+        showVoiceStatus("Recording... Tap stop when done")
+    }
+
+    private fun stopVoiceRecording() {
+        isRecording = false
+        stopVoiceAnimation()
+
+        when (selectedSttEngine) {
+            "android" -> {
+                speechRecognizer?.stopListening()
+                speechRecognizer?.destroy()
+                speechRecognizer = null
+            }
+            "groq" -> {
+                val audioFile = audioRecorder?.stopRecording()
+                if (audioFile != null && audioFile.exists() && audioFile.length() > 0) {
+                    showVoiceStatus("Transcribing...")
+                    transcribeWithGroq(audioFile)
+                }
+            }
+        }
+
+        // Return to keyboard
+        voiceBar.visibility = View.GONE
+        toolbar.visibility = View.VISIBLE
+        keyGrid.visibility = View.VISIBLE
+        isVoiceMode = false
+        updateSuggestions()
+    }
+
+    private fun transcribeWithGroq(audioFile: File) {
+        CoroutineScope(Dispatchers.IO).launch {
+            val result = groqWhisperApi.transcribe(audioFile, currentLang)
+            
+            withContext(Dispatchers.Main) {
+                result.fold(
+                    onSuccess = { text ->
+                        showVoiceResult(text)
+                        // Insert text
+                        bufferText += text + " "
+                        currentInputConnection?.commitText(text + " ", 1)
+                    },
+                    onFailure = { error ->
+                        showVoiceError(error.message ?: "Transcription failed")
+                    }
+                )
+            }
+            audioFile.delete()
+        }
+    }
+
     private fun getSpeechErrorText(error: Int): String {
         return when (error) {
             SpeechRecognizer.ERROR_AUDIO -> "Audio error"
@@ -369,246 +710,125 @@ class AiKeyboardService : InputMethodService() {
         }
     }
 
-    /**
-     * Start Groq recording
-     */
-    private fun startGroqRecording() {
-        if (!preferencesManager.isGroqApiKeyConfigured()) {
-            controller.setRecordingStatus(false, "Groq API key not set. Go to Settings > API Keys")
-            isRecording = false
-            return
-        }
-
-        val audioFile = audioRecorder?.startRecording()
-        if (audioFile == null) {
-            controller.setRecordingStatus(false, "Recording failed")
-            isRecording = false
-            return
-        }
-
-        controller.setRecordingStatus(true, "Recording... Tap mic to stop")
+    private fun showVoiceStatus(text: String) {
+        voiceResultText.text = text
+        voiceResultText.visibility = View.VISIBLE
+        voiceResultText.setTextColor(colorKeyText)
     }
 
-    /**
-     * Start Gemini recording
-     */
-    private fun startGeminiRecording() {
-        if (!preferencesManager.isGeminiApiKeyConfigured()) {
-            controller.setRecordingStatus(false, "Gemini API key not set. Go to Settings > API Keys")
-            isRecording = false
-            return
-        }
-
-        val audioFile = audioRecorder?.startRecording()
-        if (audioFile == null) {
-            controller.setRecordingStatus(false, "Recording failed")
-            isRecording = false
-            return
-        }
-
-        controller.setRecordingStatus(true, "Recording with Gemini... Tap mic to stop")
+    private fun showVoiceResult(text: String) {
+        voiceResultText.text = text
+        voiceResultText.visibility = View.VISIBLE
+        voiceResultText.setTextColor(colorAccent)
+        // Insert to input
+        bufferText += text + " "
+        currentInputConnection?.commitText(text + " ", 1)
     }
 
-    /**
-     * Stop voice recording
-     */
-    private fun stopVoiceRecording() {
-        isRecording = false
+    private fun showVoiceError(error: String) {
+        voiceResultText.text = "❌ $error"
+        voiceResultText.visibility = View.VISIBLE
+        voiceResultText.setTextColor(colorVoiceRed)
+    }
 
-        if (controller.state.isUsingAndroidStt) {
-            speechRecognizer?.stopListening()
-            speechRecognizer?.destroy()
-            speechRecognizer = null
-        } else {
-            val audioFile = audioRecorder?.stopRecording()
-            
-            if (audioFile != null && audioFile.exists() && audioFile.length() > 0) {
-                controller.setRecordingStatus(false, "Transcribing...")
-                
-                CoroutineScope(Dispatchers.IO).launch {
-                    // Choose API based on selected engine
-                    val result = if (controller.state.isUsingGeminiStt) {
-                        geminiLiveApi.transcribe(
-                            audioFile,
-                            controller.state.currentLanguage.code
-                        )
-                    } else {
-                        groqWhisperApi.transcribe(
-                            audioFile,
-                            controller.state.currentLanguage.code
-                        )
-                    }
-                    
-                    withContext(Dispatchers.Main) {
-                        result.fold(
-                            onSuccess = { text ->
-                                controller.setTranscriptionResult(
-                                    TranscriptionResult.Success(
-                                        text = text,
-                                        language = controller.state.currentLanguage.code
-                                    )
-                                )
-                            },
-                            onFailure = { error ->
-                                controller.setTranscriptionResult(
-                                    TranscriptionResult.Error(error.message ?: "Transcription failed")
-                                )
-                            }
-                        )
-                    }
-                    audioFile.delete()
-                }
-            }
+    // === UTILS ===
+
+    private fun createToolbarButton(iconRes: Int, action: () -> Unit): ImageButton {
+        return ImageButton(this).apply {
+            layoutParams = LinearLayout.LayoutParams(dpToPx(44), dpToPx(40))
+            setImageResource(iconRes)
+            setColorFilter(colorKeyText)
+            background = null
+            setOnClickListener { action() }
         }
     }
 
-    // ==================== TRANSLATE PANEL ====================
-
-    private fun createTranslatePanel(): LinearLayout {
-        return LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(16, 12, 16, 12)
-
-            val translateView = TranslateView.create(
-                context = this@AiKeyboardService,
-                onTranslate = { text, source, target -> performTranslation(text, source, target) },
-                onLanguageChange = { language -> controller.setLanguage(language) },
-                onInsertText = { text -> insertText(text) }
-            )
-            translateView.updateState(controller.state)
-            addView(translateView)
-        }
-    }
-
-    /**
-     * Perform translation
-     */
-    private fun performTranslation(text: String, source: Language, target: Language) {
-        CoroutineScope(Dispatchers.IO).launch {
-            val result = zAiApi.translate(text, source.code, target.code)
-            
-            withContext(Dispatchers.Main) {
-                result.fold(
-                    onSuccess = { translatedText ->
-                        controller.setTranslationResult(
-                            TranslationResult.Success(
-                                translatedText = translatedText,
-                                sourceLanguage = source,
-                                targetLanguage = target
-                            )
-                        )
-                    },
-                    onFailure = { error ->
-                        controller.setTranslationResult(
-                            TranslationResult.Error(error.message ?: "Translation failed")
-                        )
-                    }
-                )
-            }
-        }
-    }
-
-    // ==================== EMOJI PANEL ====================
-
-    private fun createEmojiPanel(): LinearLayout {
-        return LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(8, 8, 8, 8)
-            gravity = Gravity.CENTER
-
-            val emojiView = EmojiView.create(
-                context = this@AiKeyboardService,
-                onEmojiClick = { emoji -> insertText(emoji) }
-            )
-            addView(emojiView)
-        }
-    }
-
-    // ==================== LANGUAGE SWITCH ====================
-
-    private fun createLanguageSwitch(): LinearLayout {
-        return LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            setBackgroundColor(Color.parseColor("#16213E"))
-            gravity = Gravity.CENTER
-            setPadding(8, 6, 8, 6)
-
-            addView(Button(this@AiKeyboardService).apply {
-                text = "EN"
-                setTextColor(
-                    if (controller.state.currentLanguage == Language.ENGLISH)
-                        Color.parseColor("#4285F4")
-                    else
-                        Color.GRAY
-                )
-                setBackgroundColor(Color.TRANSPARENT)
-                textSize = 12f
-                setOnClickListener {
-                    controller.setLanguage(Language.ENGLISH)
-                    switchPanel(controller.state.currentPanel)
-                }
-            })
-            addView(Button(this@AiKeyboardService).apply {
-                text = "বাং"
-                setTextColor(
-                    if (controller.state.currentLanguage == Language.BENGALI)
-                        Color.parseColor("#4285F4")
-                    else
-                        Color.GRAY
-                )
-                setBackgroundColor(Color.TRANSPARENT)
-                textSize = 12f
-                setOnClickListener {
-                    controller.setLanguage(Language.BENGALI)
-                    switchPanel(controller.state.currentPanel)
-                }
-            })
-        }
-    }
-
-    // ==================== HELPERS ====================
-
-    /**
-     * Insert text into the current input field
-     */
-    private fun insertText(text: String) {
-        currentInputConnection?.commitText(text, 1)
-        controller.appendText(text)
-    }
-
-    /**
-     * Create an error view
-     */
-    private fun createErrorView(message: String): View {
+    private fun createSuggestionTextView(gravity: Int): TextView {
         return TextView(this).apply {
-            text = "AI Voice Keyboard\n$message"
-            setPadding(32, 32, 32, 32)
-            setBackgroundColor(Color.parseColor("#1A1A2E"))
-            setTextColor(Color.WHITE)
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f)
+            this.gravity = gravity or Gravity.CENTER_VERTICAL
+            setPadding(dpToPx(12), 0, dpToPx(12), 0)
             textSize = 16f
-            gravity = Gravity.CENTER
+            setTextColor(colorKeyText)
+            typeface = Typeface.DEFAULT_BOLD
+            background = null
         }
     }
 
-    override fun onStartInput(attribute: android.view.inputmethod.EditorInfo?, restarting: Boolean) {
-        super.onStartInput(attribute, restarting)
-        Log.d(TAG, "onStartInput")
+    private fun createVerticalDivider(): View {
+        return View(this).apply {
+            layoutParams = LinearLayout.LayoutParams(dpToPx(1), LinearLayout.LayoutParams.MATCH_PARENT).apply {
+                topMargin = dpToPx(12)
+                bottomMargin = dpToPx(12)
+            }
+            setBackgroundColor(colorDivider)
+        }
     }
 
-    override fun onStartInputView(editorInfo: android.view.inputmethod.EditorInfo?, restarting: Boolean) {
-        super.onStartInputView(editorInfo, restarting)
-        Log.d(TAG, "=== KEYBOARD VISIBLE - READY TO TYPE ===")
+    private fun createVoiceBar(): View {
+        return View(this).apply {
+            layoutParams = LinearLayout.LayoutParams(dpToPx(3), dpToPx(12)).apply {
+                marginStart = dpToPx(2)
+                marginEnd = dpToPx(2)
+            }
+            setBackgroundColor(colorAccent)
+        }
     }
 
-    override fun onFinishInput() {
-        super.onFinishInput()
-        Log.d(TAG, "onFinishInput")
+    private fun createRoundedDrawable(color: Int, radiusDp: Float): GradientDrawable {
+        return GradientDrawable().apply {
+            shape = GradientDrawable.RECTANGLE
+            cornerRadius = dpToPx(radiusDp).toFloat()
+            setColor(color)
+        }
+    }
+
+    private fun startVoiceAnimation() {
+        for (i in 0 until visualizer.childCount) {
+            val bar = visualizer.getChildAt(i)
+            val anim = ValueAnimator.ofFloat(6f, 28f).apply {
+                duration = (300..600).random().toLong()
+                repeatMode = ValueAnimator.REVERSE
+                repeatCount = ValueAnimator.INFINITE
+                interpolator = AccelerateDecelerateInterpolator()
+                addUpdateListener { value ->
+                    val h = value.animatedValue as Float
+                    bar.layoutParams.height = dpToPx(h.toInt())
+                    bar.requestLayout()
+                }
+            }
+            animators.add(anim)
+            anim.start()
+        }
+    }
+
+    private fun stopVoiceAnimation() {
+        animators.forEach { it.cancel() }
+        animators.clear()
+    }
+
+    private fun dpToPx(dp: Int): Int {
+        return (dp * resources.displayMetrics.density).toInt()
+    }
+
+    private fun dpToPx(dp: Float): Int {
+        return (dp * resources.displayMetrics.density).toInt()
+    }
+
+    private fun vibrate() {
+        val vibrator = getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            vibrator.vibrate(VibrationEffect.createOneShot(10, VibrationEffect.DEFAULT_AMPLITUDE))
+        } else {
+            vibrator.vibrate(10)
+        }
     }
 
     override fun onDestroy() {
-        Log.d(TAG, "=== SERVICE DESTROYED ===")
+        Log.d(TAG, "=== Service Destroyed ===")
         speechRecognizer?.destroy()
         audioRecorder?.release()
+        stopVoiceAnimation()
         super.onDestroy()
     }
 }
