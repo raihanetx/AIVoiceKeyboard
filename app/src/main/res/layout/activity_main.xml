@@ -1,55 +1,115 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical"
-    android:gravity="center"
-    android:padding="24dp"
+    android:fillViewport="true"
     android:background="#FFFFFF">
 
-    <TextView
-        android:layout_width="wrap_content"
+    <LinearLayout
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="🎤 AI Voice Keyboard"
-        android:textSize="28sp"
-        android:textStyle="bold"
-        android:textColor="#1A73E8" />
+        android:orientation="vertical"
+        android:gravity="center_horizontal"
+        android:padding="24dp">
 
-    <TextView
-        android:id="@+id/tvStatus"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="24dp"
-        android:text="Keyboard not yet enabled. Tap 'Enable Keyboard' to proceed."
-        android:textSize="16sp"
-        android:textAlignment="center"
-        android:textColor="#666666" />
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="🎤 AI Voice Keyboard"
+            android:textSize="28sp"
+            android:textStyle="bold"
+            android:textColor="#1A73E8" />
 
-    <Button
-        android:id="@+id/btnEnableKeyboard"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="32dp"
-        android:text="Enable Keyboard"
-        android:textAllCaps="false"
-        android:backgroundTint="#1A73E8" />
+        <TextView
+            android:id="@+id/tvStatus"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="Keyboard not yet enabled"
+            android:textSize="16sp"
+            android:textAlignment="center"
+            android:textColor="#EA4335" />
 
-    <Button
-        android:id="@+id/btnSelectKeyboard"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="16dp"
-        android:text="Select Keyboard"
-        android:textAllCaps="false"
-        android:backgroundTint="#34A853" />
+        <LinearLayout
+            android:id="@+id/setupButtons"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:layout_marginTop="24dp">
 
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="32dp"
-        android:text="Features:\n• Voice typing with Android Offline\n• Voice typing with Groq AI\n• English &amp; Bangla keyboards\n• Smart suggestions"
-        android:textSize="14sp"
-        android:textAlignment="center"
-        android:textColor="#888888" />
+            <Button
+                android:id="@+id/btnEnableKeyboard"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="1. Enable Keyboard"
+                android:textAllCaps="false"
+                android:backgroundTint="#1A73E8"
+                android:paddingHorizontal="32dp" />
 
-</LinearLayout>
+            <Button
+                android:id="@+id/btnSelectKeyboard"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:text="2. Select Keyboard"
+                android:textAllCaps="false"
+                android:backgroundTint="#34A853"
+                android:paddingHorizontal="32dp" />
+
+        </LinearLayout>
+
+        <!-- Test Area - shown when keyboard is enabled -->
+        <LinearLayout
+            android:id="@+id/testArea"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:layout_marginTop="24dp"
+            android:visibility="gone">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="✅ Keyboard Ready! Try it below:"
+                android:textSize="16sp"
+                android:textStyle="bold"
+                android:textColor="#34A853"
+                android:layout_gravity="center" />
+
+            <EditText
+                android:id="@+id/testInput"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:hint="Tap here to test your keyboard..."
+                android:padding="16dp"
+                android:background="@drawable/test_input_bg"
+                android:minHeight="120dp"
+                android:gravity="top|start"
+                android:inputType="textMultiLine" />
+
+            <Button
+                android:id="@+id/btnClear"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:text="Clear"
+                android:textAllCaps="false"
+                android:backgroundTint="#EA4335"
+                android:layout_gravity="center" />
+
+        </LinearLayout>
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="24dp"
+            android:text="Features:\n• Voice typing with Android Offline\n• Voice typing with Groq AI\n• English &amp; Bangla keyboards\n• Caps Lock support"
+            android:textSize="14sp"
+            android:textAlignment="center"
+            android:textColor="#888888" />
+
+    </LinearLayout>
+
+</ScrollView>
