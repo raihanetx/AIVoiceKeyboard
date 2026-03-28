@@ -3,9 +3,9 @@
     <color name="primary">#FF6C5CE7</color>
     <color name="primary_color">#FF6C5CE7</color>
     <color name="secondary">#FF34A853</color>
-    <color name="background">#FF0D0D0D</background>
-    <color name="surface">#FF1A1A1A</color>
     <color name="success_color">#FF2E7D32</color>
+    <color name="background">#FF0D0D0D</color>
+    <color name="surface">#FF1A1A1A</color>
     <color name="card_bg">#FF1A1A1A</color>
     <color name="card_bg_disabled">#FF0D0D0D</color>
 </resources>
