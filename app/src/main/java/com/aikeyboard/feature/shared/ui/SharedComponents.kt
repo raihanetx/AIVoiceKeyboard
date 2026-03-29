@@ -8,7 +8,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.ArrowBack
 import androidx.compose.material.ripple.rememberRipple
-import androidx.compose.material3.Divider
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -56,7 +56,7 @@ fun OverlayHeader(title: String, onBack: () -> Unit) {
         }
 
         // Bottom divider line
-        Divider(
+        HorizontalDivider(
             color     = colors.divider,
             thickness = 1.dp,
             modifier  = Modifier.align(Alignment.BottomCenter),
