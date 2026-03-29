@@ -22,8 +22,8 @@ android {
         applicationId = "com.aikeyboard"
         minSdk = 26
         targetSdk = 34
-        versionCode = 12
-        versionName = "1.2.0"
+        versionCode = 13
+        versionName = "1.3.0"
         
         buildConfigField("String", "GROQ_API_KEY", "\"$groqApiKey\"")
     }
@@ -52,24 +52,47 @@ android {
     }
     
     buildFeatures {
-        viewBinding = true
+        compose = true
         buildConfig = true
+    }
+    
+    composeOptions {
+        kotlinCompilerExtensionVersion = "1.5.8"
     }
 }
 
 dependencies {
-    implementation("androidx.core:core-ktx:1.12.0")
-    implementation("androidx.appcompat:appcompat:1.6.1")
-    implementation("com.google.android.material:material:1.11.0")
-    implementation("androidx.constraintlayout:constraintlayout:2.1.4")
+    // ── Compose BOM — keeps all Compose versions in sync automatically ────────
+    val composeBom = platform("androidx.compose:compose-bom:2024.02.01")
+    implementation(composeBom)
+
+    // Core Compose
+    implementation("androidx.compose.ui:ui")
+    implementation("androidx.compose.ui:ui-tooling-preview")
+    implementation("androidx.compose.foundation:foundation")
+    implementation("androidx.compose.animation:animation")
+
+    // Material 3 + extended icons
+    implementation("androidx.compose.material3:material3")
+    implementation("androidx.compose.material:material-icons-extended")
+
+    // Activity + ViewModel + Lifecycle
+    implementation("androidx.activity:activity-compose:1.8.2")
+    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.7.0")
+    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.7.0")
+    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.7.0")
+
+    // SavedStateRegistry (required so ComposeView works inside InputMethodService)
+    implementation("androidx.savedstate:savedstate:1.2.1")
+    implementation("androidx.savedstate:savedstate-ktx:1.2.1")
+
+    // Coroutines
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
     
     // OkHttp for Groq API
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
-    
-    // Coroutines
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3")
-    
-    // Lifecycle
-    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.7.0")
+
+    // Debug / preview tools
+    debugImplementation("androidx.compose.ui:ui-tooling")
+    debugImplementation("androidx.compose.ui:ui-test-manifest")
 }
