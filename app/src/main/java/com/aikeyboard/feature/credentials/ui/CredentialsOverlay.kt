@@ -89,7 +89,7 @@ fun CredentialsOverlay(
             }
         }
         
-        Divider(color = colors.divider, thickness = 1.dp)
+        HorizontalDivider(color = colors.divider, thickness = 1.dp)
         
         // Content
         if (items.isEmpty()) {
